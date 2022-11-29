@@ -1,4 +1,6 @@
 import 'dart:core';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class Network {
   static const String proto = "https";
@@ -6,14 +8,22 @@ class Network {
   static const String githubPagesSubDomain = "mmdb";
   static const String githubPagesURL =
       "$proto://$githubPagesDomain/$githubPagesSubDomain";
+  static const String githubPagesMangaList = "$githubPagesURL/ids.html";
 
-  static Future<List<String>> getMangaList() async {
-    // TODO add api interaction
-    return ['mashle', '20th-century-boys', 'tokyo-revengers'];
+  static Future<List<dynamic>> getMangaList() async {
+    final response = await http.get(Uri.parse(githubPagesMangaList));
+    if (response.statusCode == 200) {
+      final js = jsonDecode(response.body.substring(
+          response.body.indexOf('{'), response.body.lastIndexOf('}') + 1));
+
+      return js['list'];
+    } else {
+      return [];
+    }
   }
 
-  static String getMangaUrl({required String mangaTitle}) {
-    return "$githubPagesURL/mangas/$mangaTitle.html";
+  static String getMangaUrl({required String dir}) {
+    return "$githubPagesURL/mangas/$dir.html";
   }
 
   static String getMangaImageUrl(

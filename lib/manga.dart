@@ -1,12 +1,14 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as html;
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:mmdb_app/network.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Manga {
   const Manga(
-      {required this.title,
+      {required this.uuid,
+      required this.title,
       required this.titleOriginal,
       required this.genres,
       required this.story,
@@ -19,6 +21,7 @@ class Manga {
 
   factory Manga.fromJson(dynamic js) {
     Manga m = Manga(
+        uuid: js['uuid'],
         title: js['title'],
         titleOriginal: js['title-original'],
         genres: <String>[for (final x in js['genres']) x],
@@ -33,6 +36,7 @@ class Manga {
     return m;
   }
 
+  final String uuid;
   final String title;
   final String titleOriginal;
   final List<String> genres;
@@ -46,9 +50,55 @@ class Manga {
 
   @override
   String toString() {
-    final js = jsonEncode(this);
-    print(js);
-    return js;
+    return '''{"uuid":$uuid,
+        "title": $title,
+        "title-original": $titleOriginal,
+        "genres": $genres,
+        "story": $story,
+        "designs": $design,
+        "editor": $editor,
+        "volumes": $volumes,
+        "variants": $variants,
+        "img-dir":$imgDir,
+        "img-name":$imgName}''';
+  }
+
+  void removeVolumeFromLibrary(int volNumber) {
+    SharedPreferences.getInstance().then((db) {
+      final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
+      final savedVolumesList = db.getStringList(uuid) ?? [];
+
+      if (savedVolumesList.contains(volNumber.toString())) {
+        savedVolumesList.remove(volNumber.toString());
+        if (savedVolumesList.isNotEmpty) {
+          db.setStringList(uuid, savedVolumesList);
+        } else {
+          db.remove(uuid);
+          savedMangaList.remove(uuid);
+          savedMangaList.isEmpty
+              ? db.remove('savedMangasUUID')
+              : db.setStringList('savedMangasUUID', savedMangaList);
+        }
+      }
+    });
+  }
+
+  void addVolumeToLibrary(int volNumber) {
+    //first check if manga is already stored
+    SharedPreferences.getInstance().then((db) {
+      final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
+      if (savedMangaList.contains(uuid)) {
+        final savedVolumesList = db.getStringList(uuid) ?? [];
+        if (!savedVolumesList.contains(volNumber.toString())) {
+          savedVolumesList.add(volNumber.toString());
+        }
+        db.setStringList(uuid, savedVolumesList);
+      } else {
+        savedMangaList.add(uuid);
+        db.setStringList('savedMangasUUID', savedMangaList);
+        db.setStringList(uuid, [volNumber.toString()]);
+      }
+    });
   }
 
   /// Returns the volume cover of the selected cover or 404 if not exist
@@ -110,7 +160,11 @@ class Manga {
   }
 
   static Future<void> showVolume(
-      {required BuildContext context, required Image image}) async {
+      {required BuildContext context,
+      required Image image,
+      required int volNumber,
+      required String actionTitle,
+      required Function action}) async {
     switch (await showDialog<String>(
         context: context,
         builder: (BuildContext context) {
@@ -121,27 +175,35 @@ class Manga {
               const Divider(),
               SimpleDialogOption(
                 onPressed: () {
-                  Navigator.pop(context, 'Add');
+                  Navigator.pop(context, 'action');
                 },
-                child: const Text('Add to library'),
+                child: Text(actionTitle),
               ),
             ],
           );
         })) {
-      case 'Add':
-        print("ADD");
+      case 'action':
+        action.call(volNumber);
         break;
       case null:
-        print("Dismiss");
         break;
     }
   }
 
   /// Wraps the volume image inside a box shadow with tap detection
   static Widget volumeImageWrapper(
-      {required BuildContext context, required Image image}) {
+      {required BuildContext context,
+      required Image image,
+      required int volNumber,
+      required String actionTitle,
+      required Function action}) {
     return GestureDetector(
-      onTap: (() => showVolume(context: context, image: image)),
+      onTap: (() => showVolume(
+          context: context,
+          image: image,
+          volNumber: volNumber,
+          action: action,
+          actionTitle: actionTitle)),
       child: Container(
         decoration: BoxDecoration(
           boxShadow: [
@@ -149,7 +211,7 @@ class Manga {
               color: Colors.grey.withOpacity(0.2),
               spreadRadius: 2,
               blurRadius: 5,
-              offset: Offset(0, 1),
+              offset: const Offset(0, 1),
             )
           ],
         ),
@@ -160,9 +222,19 @@ class Manga {
   }
 
   /// Returns a Manga instance for the selected manga,
-  static Future<Manga> getMangaByTitle({required String title}) async {
-    final response =
-        await html.get(Uri.parse(Network.getMangaUrl(mangaTitle: title)));
+  static Future<Manga> getMangaByUUID({required String uuid}) async {
+    final list = await Network.getMangaList();
+
+    for (var manga in list) {
+      if (manga['uuid'] == uuid) {
+        return getMangaByDir(dir: manga['dir']);
+      }
+    }
+    return emptyManga;
+  }
+
+  static Future<Manga> getMangaByDir({required String dir}) async {
+    final response = await http.get(Uri.parse(Network.getMangaUrl(dir: dir)));
 
     if (response.statusCode == 200) {
       final jsStart = response.body.indexOf('{');
@@ -172,14 +244,15 @@ class Manga {
 
       return Manga.fromJson(js);
     } else if (response.statusCode == 404) {
-      throw ('getMangaByTitle($title): 404 - Manga Not Found');
+      throw ('getMangaByTitle($dir): 404 - Manga Not Found');
     } else {
-      throw ('getMangaByTitle($title): ${response.statusCode} - An error has occoured');
+      throw ('getMangaByTitle($dir): ${response.statusCode} - An error has occoured');
     }
   }
 }
 
 const Manga emptyManga = Manga(
+    uuid: 'MangaNotFound',
     title: 'MangaNotFound',
     titleOriginal: 'MangaNotFound',
     genres: ['MangaNotFound'],

@@ -1,10 +1,11 @@
+import 'dart:developer';
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:mmdb_app/manga.dart';
+import 'package:mmdb_app/network.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  //WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -14,8 +15,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter test',
+      title: 'MMDB',
       theme: ThemeData(
+        primaryColorDark: Colors.blue,
         primarySwatch: Colors.blue,
       ),
       home: const HomePage(),
@@ -23,7 +25,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-//TODO from here
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
 
@@ -33,31 +34,90 @@ class LibraryPage extends StatefulWidget {
 
 class _LibraryPageState extends State<LibraryPage> {
   late final SharedPreferences _db;
-  late final List<String> mangaList;
-  late final Map<String, dynamic> volumes;
+  late final List<String> _mangaList;
+  final Map<Manga, List<int>> _volumes = <Manga, List<int>>{};
 
+  @override
   void initState() {
     super.initState();
-    SharedPreferences.getInstance().then((db) => _db = db);
+    SharedPreferences.getInstance().then((db) {
+      _db = db;
+      _restorePreferences().then(
+          (volumes) => setState(() => _volumes.addEntries(volumes.entries)));
+    });
   }
 
-  void restorePreferences() {
+  Future<Map<Manga, List<int>>> _restorePreferences() async {
+    final Map<Manga, List<int>> volumes = <Manga, List<int>>{};
     //First get the list of saved manga:
-    mangaList = _db.getStringList('savedMangas') ?? [];
+    _mangaList = _db.getStringList('savedMangasUUID') ?? [];
     //then iterate for each manga and retrieve saved volumes
-    for (var manga in mangaList) {
-      _db.getStringList(manga);
-      // TODO change wep apis so that the manga can be retrieved by uuid
-      // and change the key in the shared preferenes to use the uuid
+    for (var mangaUUID in _mangaList) {
+      final vols =
+          _db.getStringList(mangaUUID)?.map((e) => int.parse(e)).toList() ?? [];
+      final manga = await Manga.getMangaByUUID(uuid: mangaUUID);
+      volumes.addEntries({manga: vols}.entries);
     }
+    return volumes;
+  }
+
+  List<Widget> _getChildrens() {
+    List<Widget> children = <Widget>[];
+
+    _volumes.forEach((manga, savedVolumesList) {
+      children.add(Column(children: <Widget>[
+        SizedBox(
+          height: 45,
+          child: TextButton(
+            onPressed: () => SnackBar(content: Text(manga.title)),
+            child: ListTile(
+              title: Text(
+                manga.title,
+                style: Theme.of(context).textTheme.headline5,
+              ),
+              trailing: const Icon(Icons.open_in_new),
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 200,
+          child: GridView.count(
+              primary: false,
+              padding: const EdgeInsets.all(6),
+              crossAxisCount: 1,
+              mainAxisSpacing: 6,
+              scrollDirection: Axis.horizontal,
+              childAspectRatio: 1.5,
+              children: savedVolumesList
+                  .map((vol) => Manga.volumeImageWrapper(
+                      context: context,
+                      image: manga.getVolumeCover(volumeNumber: vol),
+                      volNumber: vol,
+                      actionTitle: "Remove from library",
+                      action: manga.removeVolumeFromLibrary))
+                  .toList()),
+        ),
+      ]));
+    });
+
+    return children;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container();
+    return Scaffold(
+        appBar: AppBar(
+          title: const Text('My library'),
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              children: _getChildrens(),
+            ),
+          ),
+        ));
   }
 }
-//TODO to here
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -68,34 +128,52 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final _widgets = <Widget>[];
+
+  void _showSaved(BuildContext context) {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: ((context) => const LibraryPage())));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    Network.getMangaList().then((list) {
+      for (var manga in list) {
+        setState(() {
+          _widgets.add(VolumesList(uuid: manga['uuid'], dir: manga['dir']));
+          _widgets.add(const Divider());
+        });
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(title: Text(widget.homePageTitle)),
+        appBar: AppBar(
+          title: Text(widget.homePageTitle),
+          actions: [
+            IconButton(
+                onPressed: () => _showSaved(context),
+                icon: const Icon(Icons.list))
+          ],
+        ),
         body: SafeArea(
           child: SingleChildScrollView(
             child: Column(
-              children: const <Widget>[
-                //Divider(thickness: 0, color: Colors.white),
-                VolumesList(mangaTitle: 'mashle'),
-                Divider(),
-                VolumesList(mangaTitle: 'tokyo-revengers'),
-                Divider(),
-                VolumesList(mangaTitle: '20th-century-boys'),
-                Divider(),
-                //VolumesList(mangaTitle: 'IDK')
-              ],
+              children: _widgets,
             ),
           ),
         ));
-    //TODO generalise
   }
 }
 
 class VolumesList extends StatefulWidget {
-  const VolumesList({super.key, required this.mangaTitle});
+  const VolumesList({super.key, required this.uuid, required this.dir});
 
-  final String mangaTitle;
+  final String uuid;
+  final String dir;
   @override
   State<VolumesList> createState() => _VolumesListState();
 }
@@ -107,7 +185,7 @@ class _VolumesListState extends State<VolumesList> {
   @override
   void initState() {
     super.initState();
-    _manga = Manga.getMangaByTitle(title: widget.mangaTitle);
+    _manga = Manga.getMangaByDir(dir: widget.dir);
   }
 
   void _openMangaPage(BuildContext context, Manga? mangaData) {
@@ -125,7 +203,7 @@ class _VolumesListState extends State<VolumesList> {
         if (mangaData.hasData) {
           return Column(
             children: <Widget>[
-              Container(
+              SizedBox(
                 height: 45,
                 child: TextButton(
                   onPressed: () => _openMangaPage(context, mangaData.data),
@@ -149,15 +227,22 @@ class _VolumesListState extends State<VolumesList> {
                   childAspectRatio: 1.5,
                   children: mangaData.data!
                       .getAllVolumeCovers()
-                      .map((e) =>
-                          Manga.volumeImageWrapper(context: context, image: e))
+                      .asMap()
+                      .entries
+                      .map((e) => Manga.volumeImageWrapper(
+                            context: context,
+                            image: e.value,
+                            volNumber: e.key + 1,
+                            action: mangaData.data!.addVolumeToLibrary,
+                            actionTitle: 'Add to Library',
+                          ))
                       .toList(),
                 ),
               ),
             ],
           );
         } else if (mangaData.hasError) {
-          print("build(${widget.mangaTitle}): error = ${mangaData.error}");
+          log("build(${widget.uuid}): error = ${mangaData.error}");
           return Column(
             children: <Widget>[
               ListTile(
@@ -197,57 +282,10 @@ class MangaPage extends StatefulWidget {
 }
 
 class _MangaPageState extends State<MangaPage> {
-  /*
-  Future<void> _showVolume({required Image image}) async {
-    switch (await showDialog<String>(
-        context: context,
-        builder: (BuildContext context) {
-          return SimpleDialog(
-            children: <Widget>[
-              Container(padding: EdgeInsets.all(4.0), child: image),
-              Align(
-                alignment: Alignment.bottomRight,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text(
-                    'Dismiss',
-                  ),
-                ),
-              ),
-            ],
-          );
-        })) {
-      case 'Add':
-        print("ADD");
-        break;
-      case null:
-        print("Dismiss");
-        break;
-    }
+  void nullFunction() {
+    return;
   }
 
-  Widget _volumeImageWrapper({required Image image}) {
-    return GestureDetector(
-      onTap: (() => _showVolume(image: image)),
-      child: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              spreadRadius: 2,
-              blurRadius: 5,
-              offset: Offset(0, 1),
-            )
-          ],
-        ),
-        alignment: Alignment.center,
-        child: image,
-      ),
-    );
-  }
-  */
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -351,8 +389,15 @@ class _MangaPageState extends State<MangaPage> {
                             childAspectRatio: 1.5,
                             children: widget.manga
                                 .getNormalVolumeCovers()
-                                .map((Image e) => Manga.volumeImageWrapper(
-                                    context: context, image: e))
+                                .asMap()
+                                .entries
+                                .map((e) => Manga.volumeImageWrapper(
+                                      context: context,
+                                      image: e.value,
+                                      volNumber: e.key + 1,
+                                      action: nullFunction,
+                                      actionTitle: 'Add to Library',
+                                    ))
                                 .toList(),
                           ),
                         ),
@@ -379,8 +424,15 @@ class _MangaPageState extends State<MangaPage> {
                             childAspectRatio: 1.5,
                             children: widget.manga
                                 .getVariantVolumeCovers()
-                                .map((Image e) => Manga.volumeImageWrapper(
-                                    context: context, image: e))
+                                .asMap()
+                                .entries
+                                .map((e) => Manga.volumeImageWrapper(
+                                      context: context,
+                                      image: e.value,
+                                      volNumber: e.key + 1,
+                                      action: nullFunction,
+                                      actionTitle: 'Add to Library',
+                                    ))
                                 .toList(),
                           ),
                         ),
@@ -397,13 +449,7 @@ class _MangaPageState extends State<MangaPage> {
   }
 }
 
-/*
-
-
-  OLD
-
-
-*/
+//TODO Remove
 class SavedRandomPairs extends StatefulWidget {
   const SavedRandomPairs({super.key, required this.savedPairs});
 
