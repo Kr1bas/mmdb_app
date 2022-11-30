@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mmdb_app/manga.dart';
 import 'package:mmdb_app/network.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:collection';
 
 void main() {
   runApp(const MyApp());
@@ -78,7 +79,7 @@ class DisplayPage extends StatefulWidget {
 }
 
 class _DisplayPageState extends State<DisplayPage> {
-  final _widgets = <Widget>[];
+  final _widgets = <MangaListItem>[];
 
   @override
   void initState() {
@@ -94,6 +95,8 @@ class _DisplayPageState extends State<DisplayPage> {
 
   @override
   Widget build(BuildContext context) {
+    _widgets.sort(
+        ((MangaListItem a, MangaListItem b) => a.manga.compareTo(b.manga)));
     return SingleChildScrollView(
       child: Column(
         children: _widgets,
@@ -235,6 +238,9 @@ class _MangaPageState extends State<MangaPage> {
                   ],
                 ),
               ),
+              Divider(
+                color: Theme.of(context).backgroundColor,
+              ),
               ListTile(
                 //story
                 title: Column(
@@ -250,6 +256,9 @@ class _MangaPageState extends State<MangaPage> {
                     )
                   ],
                 ),
+              ),
+              Divider(
+                color: Theme.of(context).backgroundColor,
               ),
               ListTile(
                 //designs
@@ -267,6 +276,9 @@ class _MangaPageState extends State<MangaPage> {
                   ],
                 ),
               ),
+              Divider(
+                color: Theme.of(context).backgroundColor,
+              ),
               ListTile(
                 //genres
                 title: Column(
@@ -283,6 +295,9 @@ class _MangaPageState extends State<MangaPage> {
                   ],
                 ),
               ),
+              Divider(
+                color: Theme.of(context).backgroundColor,
+              ),
               ListTile(
                 // Editor
                 title: Column(
@@ -298,6 +313,9 @@ class _MangaPageState extends State<MangaPage> {
                     )
                   ],
                 ),
+              ),
+              Divider(
+                color: Theme.of(context).backgroundColor,
               ),
               widget.manga.getNormalVolumeCovers().isNotEmpty
                   ? Column(
@@ -325,7 +343,7 @@ class _MangaPageState extends State<MangaPage> {
                                 .map((e) => Manga.volumeImageWrapper(
                                       context: context,
                                       image: e.value,
-                                      volNumber: e.key + 1,
+                                      volNumber: widget.manga.volumes[e.key],
                                       action: widget.manga.addVolumeToLibrary,
                                       actionTitle: 'Add to Library',
                                     ))
@@ -334,7 +352,9 @@ class _MangaPageState extends State<MangaPage> {
                         ),
                       ],
                     )
-                  : const Divider(),
+                  : Divider(
+                      color: Theme.of(context).backgroundColor,
+                    ),
               widget.manga.getVariantVolumeCovers().isNotEmpty
                   ? Column(
                       // Variants
@@ -360,7 +380,7 @@ class _MangaPageState extends State<MangaPage> {
                                 .map((e) => Manga.volumeImageWrapper(
                                       context: context,
                                       image: e.value,
-                                      volNumber: e.key + 1,
+                                      volNumber: widget.manga.variants[e.key],
                                       action: widget.manga.addVolumeToLibrary,
                                       actionTitle: 'Add to Library',
                                       isVariant: true,
@@ -569,7 +589,7 @@ class LibraryPage extends StatefulWidget {
 class _LibraryPageState extends State<LibraryPage> {
   late final SharedPreferences _db;
   late final List<String> _mangaList;
-  final Map<Manga, List<int>> _volumes = <Manga, List<int>>{};
+  late final SplayTreeMap<Manga, List<int>> _volumes = SplayTreeMap();
 
   @override
   void initState() {
@@ -585,15 +605,18 @@ class _LibraryPageState extends State<LibraryPage> {
     final Map<Manga, List<int>> volumes = <Manga, List<int>>{};
     //First get the list of saved manga:
     _mangaList = _db.getStringList('savedMangasUUID') ?? [];
+    _mangaList.sort();
+
     //then iterate for each manga and retrieve saved volumes
     for (var mangaUUID in _mangaList) {
       final vols =
           _db.getStringList(mangaUUID)?.map((e) => int.parse(e)).toList() ?? [];
-      vols.sort();
+      vols.sort(((a, b) => a.abs().compareTo(b.abs())));
       final manga = await Manga.getMangaByUUID(uuid: mangaUUID);
       volumes.addEntries({manga: vols}.entries);
     }
-
+    SplayTreeMap.from(
+        volumes, ((Manga key1, Manga key2) => key1.compareTo(key2)));
     return volumes;
   }
 
@@ -648,7 +671,8 @@ class _LibraryPageState extends State<LibraryPage> {
                           volumeNumber: vol.abs(), isVariant: (vol < 0)),
                       volNumber: vol.abs(),
                       actionTitle: "Remove from library",
-                      action: manga.removeVolumeFromLibrary))
+                      action: manga.removeVolumeFromLibrary,
+                      isVariant: vol < 0))
                   .toList()),
         ),
       ]));
@@ -666,6 +690,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
   @override
   Widget build(BuildContext context) {
+    //TODO transform into a future builder
     return SafeArea(
       child: SingleChildScrollView(
         child: Column(

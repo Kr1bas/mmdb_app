@@ -6,7 +6,7 @@ import 'package:mmdb_app/network.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // TODO add comparator
-class Manga {
+class Manga implements Comparable<Manga> {
   const Manga(
       {required this.uuid,
       required this.title,
@@ -64,10 +64,17 @@ class Manga {
         "img-name":$imgName}''';
   }
 
+  @override
+  int compareTo(Manga other) {
+    return this.title.compareTo(other.title);
+  }
+
   void removeVolumeFromLibrary(
       BuildContext context, int volumeNumber, bool isVariant) {
     SharedPreferences.getInstance().then((db) {
       var volNumber = isVariant ? "-$volumeNumber" : "$volumeNumber";
+      print(
+          "removeVolumeFromLibrary(context,$volumeNumber,$isVariant): volNumber = $volNumber");
       final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
       final savedVolumesList = db.getStringList(uuid) ?? [];
 
@@ -93,6 +100,8 @@ class Manga {
       BuildContext context, int volumeNumber, bool isVariant) {
     SharedPreferences.getInstance().then((db) {
       var volNumber = isVariant ? "-$volumeNumber" : "$volumeNumber";
+      print(
+          "addVolumeToLibrary(context,$volumeNumber,$isVariant): volNumber = $volNumber");
       final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
       //first check if manga is already stored
       if (savedMangaList.contains(uuid)) {
@@ -199,6 +208,7 @@ class Manga {
           );
         })) {
       case 'action':
+        print("calling: action(context,$volNumber,$isVariant)");
         action(context, volNumber, isVariant);
         break;
       case null:
@@ -221,7 +231,7 @@ class Manga {
           volNumber: volNumber,
           action: action,
           actionTitle: actionTitle,
-          isVariant: true)),
+          isVariant: isVariant)),
       child: Container(
         decoration: BoxDecoration(
           boxShadow: [
