@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:mmdb_app/network.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// TODO add comparator
 class Manga {
   const Manga(
       {required this.uuid,
@@ -63,8 +64,10 @@ class Manga {
         "img-name":$imgName}''';
   }
 
-  void removeVolumeFromLibrary(BuildContext context, int volNumber) {
+  void removeVolumeFromLibrary(
+      BuildContext context, int volumeNumber, bool isVariant) {
     SharedPreferences.getInstance().then((db) {
+      var volNumber = isVariant ? "-$volumeNumber" : "$volumeNumber";
       final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
       final savedVolumesList = db.getStringList(uuid) ?? [];
 
@@ -86,14 +89,16 @@ class Manga {
     });
   }
 
-  void addVolumeToLibrary(BuildContext context, int volNumber) {
-    //first check if manga is already stored
+  void addVolumeToLibrary(
+      BuildContext context, int volumeNumber, bool isVariant) {
     SharedPreferences.getInstance().then((db) {
+      var volNumber = isVariant ? "-$volumeNumber" : "$volumeNumber";
       final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
+      //first check if manga is already stored
       if (savedMangaList.contains(uuid)) {
         final savedVolumesList = db.getStringList(uuid) ?? [];
-        if (!savedVolumesList.contains(volNumber.toString())) {
-          savedVolumesList.add(volNumber.toString());
+        if (!savedVolumesList.contains(volNumber)) {
+          savedVolumesList.add(volNumber);
           ScaffoldMessenger.of(context)
               .showSnackBar(const SnackBar(content: Text('Volume added!')));
         } else {
@@ -174,7 +179,8 @@ class Manga {
       required Image image,
       required int volNumber,
       required String actionTitle,
-      required Function action}) async {
+      required Function action,
+      bool isVariant = false}) async {
     switch (await showDialog<String>(
         context: context,
         builder: (BuildContext context) {
@@ -193,7 +199,7 @@ class Manga {
           );
         })) {
       case 'action':
-        action.call(context, volNumber);
+        action(context, volNumber, isVariant);
         break;
       case null:
         break;
@@ -206,14 +212,16 @@ class Manga {
       required Image image,
       required int volNumber,
       required String actionTitle,
-      required Function action}) {
+      required Function action,
+      bool isVariant = false}) {
     return GestureDetector(
       onTap: (() => showVolume(
           context: context,
           image: image,
           volNumber: volNumber,
           action: action,
-          actionTitle: actionTitle)),
+          actionTitle: actionTitle,
+          isVariant: true)),
       child: Container(
         decoration: BoxDecoration(
           boxShadow: [

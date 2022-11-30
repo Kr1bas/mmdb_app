@@ -211,10 +211,6 @@ class MangaPage extends StatefulWidget {
 }
 
 class _MangaPageState extends State<MangaPage> {
-  void nullFunction() {
-    return;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -365,8 +361,9 @@ class _MangaPageState extends State<MangaPage> {
                                       context: context,
                                       image: e.value,
                                       volNumber: e.key + 1,
-                                      action: nullFunction,
+                                      action: widget.manga.addVolumeToLibrary,
                                       actionTitle: 'Add to Library',
+                                      isVariant: true,
                                     ))
                                 .toList(),
                           ),
@@ -647,8 +644,9 @@ class _LibraryPageState extends State<LibraryPage> {
               children: savedVolumesList
                   .map((vol) => Manga.volumeImageWrapper(
                       context: context,
-                      image: manga.getVolumeCover(volumeNumber: vol),
-                      volNumber: vol,
+                      image: manga.getVolumeCover(
+                          volumeNumber: vol.abs(), isVariant: (vol < 0)),
+                      volNumber: vol.abs(),
                       actionTitle: "Remove from library",
                       action: manga.removeVolumeFromLibrary))
                   .toList()),
