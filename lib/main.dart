@@ -1,5 +1,4 @@
-import 'dart:developer';
-import 'package:english_words/english_words.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:mmdb_app/manga.dart';
 import 'package:mmdb_app/network.dart';
@@ -17,14 +16,552 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'MMDB',
       theme: ThemeData(
-        primaryColorDark: Colors.blue,
-        primarySwatch: Colors.blue,
+        /*dialogBackgroundColor: Colors.white,
+        scaffoldBackgroundColor: Colors.black54,
+        textTheme: const TextTheme(
+            headline5: TextStyle(color: Colors.indigo),
+            headline6: TextStyle(color: Colors.blueGrey)),*/
+        primarySwatch: Colors.amber,
       ),
       home: const HomePage(),
     );
   }
 }
 
+//Theese classes are used to create the home page
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  final String homePageTitle = "Welcome to MMDB!";
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final _pages = <Widget>[];
+  int currentPageIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages.add(const DisplayPage());
+    _pages.add(const LibraryPage());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.homePageTitle),
+      ),
+      body: _pages[currentPageIndex],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: currentPageIndex,
+        onDestinationSelected: (int index) =>
+            setState(() => currentPageIndex = index),
+        destinations: const [
+          NavigationDestination(
+              icon: Icon(Icons.view_carousel_rounded), label: 'MMDB Library'),
+          NavigationDestination(
+              icon: Icon(Icons.menu_book_rounded), label: 'My mangas')
+        ],
+      ),
+    );
+  }
+}
+
+class DisplayPage extends StatefulWidget {
+  const DisplayPage({super.key});
+
+  @override
+  State<DisplayPage> createState() => _DisplayPageState();
+}
+
+class _DisplayPageState extends State<DisplayPage> {
+  final _widgets = <Widget>[];
+
+  @override
+  void initState() {
+    super.initState();
+    Network.getMangaList().then((list) {
+      for (var mangaJS in list) {
+        Manga.getMangaByDir(dir: mangaJS['dir']).then((manga) {
+          setState(() => _widgets.add(MangaListItem(manga: manga)));
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Column(
+        children: _widgets,
+      ),
+    );
+  }
+}
+
+class MangaListItem extends StatelessWidget {
+  MangaListItem({super.key, required this.manga});
+
+  final GlobalKey _backgroundImageKey = GlobalKey();
+  final Manga manga;
+
+  void _openMangaPage(BuildContext context, Manga? mangaData) {
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: ((context) => MangaPage(
+              manga: mangaData!,
+            ))));
+  }
+
+  Widget _buildBackground(BuildContext context) {
+    return Flow(
+        delegate: ParallaxFlowDelegate(
+            backgroundImageKey: _backgroundImageKey,
+            listItemContext: context,
+            scrollable: Scrollable.of(context)!),
+        children: [
+          Image.network(
+            Network.getMangaImageUrl(
+                mangaImgDir: manga.imgDir,
+                mangaImgName: manga.imgName,
+                volumeNumber: '1'),
+            key: _backgroundImageKey,
+            fit: BoxFit.cover,
+          )
+        ]);
+  }
+
+  Widget _buildGradient() {
+    return Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.6, 0.95],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitleAndSubtitle() {
+    return Positioned(
+      left: 20,
+      bottom: 20,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            manga.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            manga.story,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: GestureDetector(
+            onTap: () => _openMangaPage(context, manga),
+            child: Stack(
+              children: [
+                _buildBackground(context),
+                _buildGradient(),
+                _buildTitleAndSubtitle()
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Theese classes are used to create each manga specific page
+class MangaPage extends StatefulWidget {
+  const MangaPage({super.key, required this.manga});
+
+  final Manga manga;
+
+  @override
+  State<MangaPage> createState() => _MangaPageState();
+}
+
+class _MangaPageState extends State<MangaPage> {
+  void nullFunction() {
+    return;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.manga.title)),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: <Widget>[
+              ListTile(
+                //titleOriginal
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Japanese Title:  ',
+                      style: Theme.of(context).textTheme.headline5,
+                    ),
+                    Text(
+                      widget.manga.titleOriginal,
+                      style: Theme.of(context).textTheme.headline6,
+                    )
+                  ],
+                ),
+              ),
+              ListTile(
+                //story
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Story by  ',
+                      style: Theme.of(context).textTheme.headline5,
+                    ),
+                    Text(
+                      widget.manga.story,
+                      style: Theme.of(context).textTheme.headline6,
+                    )
+                  ],
+                ),
+              ),
+              ListTile(
+                //designs
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Designs by  ',
+                      style: Theme.of(context).textTheme.headline5,
+                    ),
+                    Text(
+                      widget.manga.design,
+                      style: Theme.of(context).textTheme.headline6,
+                    )
+                  ],
+                ),
+              ),
+              ListTile(
+                //genres
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Genre:  ',
+                      style: Theme.of(context).textTheme.headline5,
+                    ),
+                    Text(
+                      widget.manga.genres.join(', '),
+                      style: Theme.of(context).textTheme.headline6,
+                    )
+                  ],
+                ),
+              ),
+              ListTile(
+                // Editor
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Published by  ',
+                      style: Theme.of(context).textTheme.headline5,
+                    ),
+                    Text(
+                      widget.manga.editor,
+                      style: Theme.of(context).textTheme.headline6,
+                    )
+                  ],
+                ),
+              ),
+              widget.manga.getNormalVolumeCovers().isNotEmpty
+                  ? Column(
+                      // Volumes
+                      children: <Widget>[
+                        ListTile(
+                          title: Text(
+                              '${widget.manga.volumes.length} volumes published: ',
+                              style: Theme.of(context).textTheme.headline5),
+                        ),
+                        SizedBox(
+                          height: 200,
+                          child: GridView.count(
+                            primary: false,
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 4, horizontal: 0),
+                            crossAxisCount: 1,
+                            mainAxisSpacing: 6,
+                            scrollDirection: Axis.horizontal,
+                            childAspectRatio: 1.5,
+                            children: widget.manga
+                                .getNormalVolumeCovers()
+                                .asMap()
+                                .entries
+                                .map((e) => Manga.volumeImageWrapper(
+                                      context: context,
+                                      image: e.value,
+                                      volNumber: e.key + 1,
+                                      action: widget.manga.addVolumeToLibrary,
+                                      actionTitle: 'Add to Library',
+                                    ))
+                                .toList(),
+                          ),
+                        ),
+                      ],
+                    )
+                  : const Divider(),
+              widget.manga.getVariantVolumeCovers().isNotEmpty
+                  ? Column(
+                      // Variants
+                      children: <Widget>[
+                        ListTile(
+                          title: Text(
+                              '${widget.manga.variants.length} special edition published: ',
+                              style: Theme.of(context).textTheme.headline5),
+                        ),
+                        SizedBox(
+                          height: 200,
+                          child: GridView.count(
+                            primary: false,
+                            padding: const EdgeInsets.all(6),
+                            crossAxisCount: 1,
+                            mainAxisSpacing: 6,
+                            scrollDirection: Axis.horizontal,
+                            childAspectRatio: 1.5,
+                            children: widget.manga
+                                .getVariantVolumeCovers()
+                                .asMap()
+                                .entries
+                                .map((e) => Manga.volumeImageWrapper(
+                                      context: context,
+                                      image: e.value,
+                                      volNumber: e.key + 1,
+                                      action: nullFunction,
+                                      actionTitle: 'Add to Library',
+                                    ))
+                                .toList(),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Divider(
+                      color: Theme.of(context).backgroundColor,
+                    ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+//imported from https://docs.flutter.dev/cookbook/effects/parallax-scrolling
+class ParallaxFlowDelegate extends FlowDelegate {
+  ParallaxFlowDelegate({
+    required this.scrollable,
+    required this.listItemContext,
+    required this.backgroundImageKey,
+  }) : super(repaint: scrollable.position);
+
+  final ScrollableState scrollable;
+  final BuildContext listItemContext;
+  final GlobalKey backgroundImageKey;
+
+  @override
+  BoxConstraints getConstraintsForChild(int i, BoxConstraints constraints) {
+    return BoxConstraints.tightFor(
+      width: constraints.maxWidth,
+    );
+  }
+
+  @override
+  void paintChildren(FlowPaintingContext context) {
+    // Calculate the position of this list item within the viewport.
+    final scrollableBox = scrollable.context.findRenderObject() as RenderBox;
+    final listItemBox = listItemContext.findRenderObject() as RenderBox;
+    final listItemOffset = listItemBox.localToGlobal(
+        listItemBox.size.centerLeft(Offset.zero),
+        ancestor: scrollableBox);
+
+    // Determine the percent position of this list item within the
+    // scrollable area.
+    final viewportDimension = scrollable.position.viewportDimension;
+    final scrollFraction =
+        (listItemOffset.dy / viewportDimension).clamp(0.0, 1.0);
+
+    // Calculate the vertical alignment of the background
+    // based on the scroll percent.
+    final verticalAlignment = Alignment(0.0, scrollFraction * 2 - 1);
+
+    // Convert the background alignment into a pixel offset for
+    // painting purposes.
+    final backgroundSize =
+        (backgroundImageKey.currentContext!.findRenderObject() as RenderBox)
+            .size;
+    final listItemSize = context.size;
+    final childRect =
+        verticalAlignment.inscribe(backgroundSize, Offset.zero & listItemSize);
+
+    // Paint the background.
+    context.paintChild(
+      0,
+      transform:
+          Transform.translate(offset: Offset(0.0, childRect.top)).transform,
+    );
+  }
+
+  @override
+  bool shouldRepaint(ParallaxFlowDelegate oldDelegate) {
+    return scrollable != oldDelegate.scrollable ||
+        listItemContext != oldDelegate.listItemContext ||
+        backgroundImageKey != oldDelegate.backgroundImageKey;
+  }
+}
+
+class Parallax extends SingleChildRenderObjectWidget {
+  const Parallax({
+    super.key,
+    required Widget background,
+  }) : super(child: background);
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return RenderParallax(scrollable: Scrollable.of(context)!);
+  }
+
+  @override
+  void updateRenderObject(
+      BuildContext context, covariant RenderParallax renderObject) {
+    renderObject.scrollable = Scrollable.of(context)!;
+  }
+}
+
+class ParallaxParentData extends ContainerBoxParentData<RenderBox> {}
+
+class RenderParallax extends RenderBox
+    with RenderObjectWithChildMixin<RenderBox>, RenderProxyBoxMixin {
+  RenderParallax({
+    required ScrollableState scrollable,
+  }) : _scrollable = scrollable;
+
+  ScrollableState _scrollable;
+
+  ScrollableState get scrollable => _scrollable;
+
+  set scrollable(ScrollableState value) {
+    if (value != _scrollable) {
+      if (attached) {
+        _scrollable.position.removeListener(markNeedsLayout);
+      }
+      _scrollable = value;
+      if (attached) {
+        _scrollable.position.addListener(markNeedsLayout);
+      }
+    }
+  }
+
+  @override
+  void attach(covariant PipelineOwner owner) {
+    super.attach(owner);
+    _scrollable.position.addListener(markNeedsLayout);
+  }
+
+  @override
+  void detach() {
+    _scrollable.position.removeListener(markNeedsLayout);
+    super.detach();
+  }
+
+  @override
+  void setupParentData(covariant RenderObject child) {
+    if (child.parentData is! ParallaxParentData) {
+      child.parentData = ParallaxParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    size = constraints.biggest;
+
+    // Force the background to take up all available width
+    // and then scale its height based on the image's aspect ratio.
+    final background = child!;
+    final backgroundImageConstraints =
+        BoxConstraints.tightFor(width: size.width);
+    background.layout(backgroundImageConstraints, parentUsesSize: true);
+
+    // Set the background's local offset, which is zero.
+    (background.parentData as ParallaxParentData).offset = Offset.zero;
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    // Get the size of the scrollable area.
+    final viewportDimension = scrollable.position.viewportDimension;
+
+    // Calculate the global position of this list item.
+    final scrollableBox = scrollable.context.findRenderObject() as RenderBox;
+    final backgroundOffset =
+        localToGlobal(size.centerLeft(Offset.zero), ancestor: scrollableBox);
+
+    // Determine the percent position of this list item within the
+    // scrollable area.
+    final scrollFraction =
+        (backgroundOffset.dy / viewportDimension).clamp(0.0, 1.0);
+
+    // Calculate the vertical alignment of the background
+    // based on the scroll percent.
+    final verticalAlignment = Alignment(0.0, scrollFraction * 2 - 1);
+
+    // Convert the background alignment into a pixel offset for
+    // painting purposes.
+    final background = child!;
+    final backgroundSize = background.size;
+    final listItemSize = size;
+    final childRect =
+        verticalAlignment.inscribe(backgroundSize, Offset.zero & listItemSize);
+
+    // Paint the background.
+    context.paintChild(
+        background,
+        (background.parentData as ParallaxParentData).offset +
+            offset +
+            Offset(0.0, childRect.top));
+  }
+}
+
+// end of imported https://docs.flutter.dev/cookbook/effects/parallax-scrolling
+
+// These Classes are used to create the library page
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
 
@@ -55,9 +592,28 @@ class _LibraryPageState extends State<LibraryPage> {
     for (var mangaUUID in _mangaList) {
       final vols =
           _db.getStringList(mangaUUID)?.map((e) => int.parse(e)).toList() ?? [];
+      vols.sort();
       final manga = await Manga.getMangaByUUID(uuid: mangaUUID);
       volumes.addEntries({manga: vols}.entries);
     }
+
+    return volumes;
+  }
+
+  Future<Map<Manga, List<int>>> _reloadPreferences() async {
+    final Map<Manga, List<int>> volumes = <Manga, List<int>>{};
+    //First get the list of saved manga:
+    _mangaList.clear();
+    _mangaList.addAll(_db.getStringList('savedMangasUUID') ?? []);
+    //then iterate for each manga and retrieve saved volumes
+    for (var mangaUUID in _mangaList) {
+      final vols =
+          _db.getStringList(mangaUUID)?.map((e) => int.parse(e)).toList() ?? [];
+      vols.sort();
+      final manga = await Manga.getMangaByUUID(uuid: mangaUUID);
+      volumes.addEntries({manga: vols}.entries);
+    }
+    _volumes.clear();
     return volumes;
   }
 
@@ -69,7 +625,7 @@ class _LibraryPageState extends State<LibraryPage> {
         SizedBox(
           height: 45,
           child: TextButton(
-            onPressed: () => SnackBar(content: Text(manga.title)),
+            onPressed: () => _openMangaPage(context, manga),
             child: ListTile(
               title: Text(
                 manga.title,
@@ -103,91 +659,6 @@ class _LibraryPageState extends State<LibraryPage> {
     return children;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-        appBar: AppBar(
-          title: const Text('My library'),
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              children: _getChildrens(),
-            ),
-          ),
-        ));
-  }
-}
-
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-
-  final String homePageTitle = "Welcome to MMDB!";
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  final _widgets = <Widget>[];
-
-  void _showSaved(BuildContext context) {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: ((context) => const LibraryPage())));
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    Network.getMangaList().then((list) {
-      for (var manga in list) {
-        setState(() {
-          _widgets.add(VolumesList(uuid: manga['uuid'], dir: manga['dir']));
-          _widgets.add(const Divider());
-        });
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-        appBar: AppBar(
-          title: Text(widget.homePageTitle),
-          actions: [
-            IconButton(
-                onPressed: () => _showSaved(context),
-                icon: const Icon(Icons.list))
-          ],
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              children: _widgets,
-            ),
-          ),
-        ));
-  }
-}
-
-class VolumesList extends StatefulWidget {
-  const VolumesList({super.key, required this.uuid, required this.dir});
-
-  final String uuid;
-  final String dir;
-  @override
-  State<VolumesList> createState() => _VolumesListState();
-}
-
-class _VolumesListState extends State<VolumesList> {
-  late final Future<Manga> _manga;
-  bool initalized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _manga = Manga.getMangaByDir(dir: widget.dir);
-  }
-
   void _openMangaPage(BuildContext context, Manga? mangaData) {
     Navigator.of(context).push(MaterialPageRoute(
         builder: ((context) => MangaPage(
@@ -197,399 +668,11 @@ class _VolumesListState extends State<VolumesList> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Manga>(
-      future: _manga,
-      builder: ((context, mangaData) {
-        if (mangaData.hasData) {
-          return Column(
-            children: <Widget>[
-              SizedBox(
-                height: 45,
-                child: TextButton(
-                  onPressed: () => _openMangaPage(context, mangaData.data),
-                  child: ListTile(
-                    title: Text(
-                      mangaData.data!.title,
-                      style: Theme.of(context).textTheme.headline5,
-                    ),
-                    trailing: const Icon(Icons.open_in_new),
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 200,
-                child: GridView.count(
-                  primary: false,
-                  padding: const EdgeInsets.all(6),
-                  crossAxisCount: 1,
-                  mainAxisSpacing: 6,
-                  scrollDirection: Axis.horizontal,
-                  childAspectRatio: 1.5,
-                  children: mangaData.data!
-                      .getAllVolumeCovers()
-                      .asMap()
-                      .entries
-                      .map((e) => Manga.volumeImageWrapper(
-                            context: context,
-                            image: e.value,
-                            volNumber: e.key + 1,
-                            action: mangaData.data!.addVolumeToLibrary,
-                            actionTitle: 'Add to Library',
-                          ))
-                      .toList(),
-                ),
-              ),
-            ],
-          );
-        } else if (mangaData.hasError) {
-          log("build(${widget.uuid}): error = ${mangaData.error}");
-          return Column(
-            children: <Widget>[
-              ListTile(
-                  title: Text(
-                emptyManga.title,
-                style: Theme.of(context).textTheme.headline5,
-              )),
-              SizedBox(
-                height: 200,
-                child: GridView.count(
-                  primary: false,
-                  padding: const EdgeInsets.all(6),
-                  crossAxisCount: 1,
-                  mainAxisSpacing: 6,
-                  scrollDirection: Axis.horizontal,
-                  childAspectRatio: 1.5,
-                  children: emptyManga.getAllVolumeCovers(),
-                ),
-              ),
-            ],
-          );
-        }
-
-        return const CircularProgressIndicator();
-      }),
-    );
-  }
-}
-
-class MangaPage extends StatefulWidget {
-  const MangaPage({super.key, required this.manga});
-
-  final Manga manga;
-
-  @override
-  State<MangaPage> createState() => _MangaPageState();
-}
-
-class _MangaPageState extends State<MangaPage> {
-  void nullFunction() {
-    return;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.manga.title)),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: <Widget>[
-              ListTile(
-                //titleOriginal
-                title: Row(
-                  children: [
-                    Text(
-                      'Japanese Title:  ',
-                      style: Theme.of(context).textTheme.headline5,
-                    ),
-                    Text(
-                      widget.manga.titleOriginal,
-                      style: Theme.of(context).textTheme.headline6,
-                    )
-                  ],
-                ),
-              ),
-              ListTile(
-                //story
-                title: Row(
-                  children: [
-                    Text(
-                      'Story by  ',
-                      style: Theme.of(context).textTheme.headline5,
-                    ),
-                    Text(
-                      widget.manga.story,
-                      style: Theme.of(context).textTheme.headline6,
-                    )
-                  ],
-                ),
-              ),
-              ListTile(
-                //designs
-                title: Row(
-                  children: [
-                    Text(
-                      'Designs by  ',
-                      style: Theme.of(context).textTheme.headline5,
-                    ),
-                    Text(
-                      widget.manga.design,
-                      style: Theme.of(context).textTheme.headline6,
-                    )
-                  ],
-                ),
-              ),
-              ListTile(
-                //genres
-                title: Row(
-                  children: [
-                    Text(
-                      'Genre:  ',
-                      style: Theme.of(context).textTheme.headline5,
-                    ),
-                    Text(
-                      widget.manga.genres.join(', '),
-                      style: Theme.of(context).textTheme.headline6,
-                    )
-                  ],
-                ),
-              ),
-              ListTile(
-                // Editor
-                title: Row(
-                  children: [
-                    Text(
-                      'Published by  ',
-                      style: Theme.of(context).textTheme.headline5,
-                    ),
-                    Text(
-                      widget.manga.editor,
-                      style: Theme.of(context).textTheme.headline6,
-                    )
-                  ],
-                ),
-              ),
-              widget.manga.getNormalVolumeCovers().isNotEmpty
-                  ? Column(
-                      // Volumes
-                      children: <Widget>[
-                        ListTile(
-                          title: Text(
-                              '${widget.manga.volumes.length} volumes published: ',
-                              style: Theme.of(context).textTheme.headline5),
-                        ),
-                        SizedBox(
-                          height: 200,
-                          child: GridView.count(
-                            primary: false,
-                            padding: const EdgeInsets.all(6),
-                            crossAxisCount: 1,
-                            mainAxisSpacing: 6,
-                            scrollDirection: Axis.horizontal,
-                            childAspectRatio: 1.5,
-                            children: widget.manga
-                                .getNormalVolumeCovers()
-                                .asMap()
-                                .entries
-                                .map((e) => Manga.volumeImageWrapper(
-                                      context: context,
-                                      image: e.value,
-                                      volNumber: e.key + 1,
-                                      action: nullFunction,
-                                      actionTitle: 'Add to Library',
-                                    ))
-                                .toList(),
-                          ),
-                        ),
-                      ],
-                    )
-                  : const Divider(),
-              widget.manga.getVariantVolumeCovers().isNotEmpty
-                  ? Column(
-                      // Variants
-                      children: <Widget>[
-                        ListTile(
-                          title: Text(
-                              '${widget.manga.variants.length} special edition published: ',
-                              style: Theme.of(context).textTheme.headline5),
-                        ),
-                        SizedBox(
-                          height: 180,
-                          child: GridView.count(
-                            primary: false,
-                            padding: const EdgeInsets.all(6),
-                            crossAxisCount: 1,
-                            mainAxisSpacing: 6,
-                            scrollDirection: Axis.horizontal,
-                            childAspectRatio: 1.5,
-                            children: widget.manga
-                                .getVariantVolumeCovers()
-                                .asMap()
-                                .entries
-                                .map((e) => Manga.volumeImageWrapper(
-                                      context: context,
-                                      image: e.value,
-                                      volNumber: e.key + 1,
-                                      action: nullFunction,
-                                      actionTitle: 'Add to Library',
-                                    ))
-                                .toList(),
-                          ),
-                        ),
-                      ],
-                    )
-                  : const Divider(
-                      color: Colors.white,
-                    ),
-            ],
-          ),
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
+          children: _getChildrens(),
         ),
-      ),
-    );
-  }
-}
-
-//TODO Remove
-class SavedRandomPairs extends StatefulWidget {
-  const SavedRandomPairs({super.key, required this.savedPairs});
-
-  final List<String> savedPairs;
-  final String title = "Saved";
-  @override
-  State<SavedRandomPairs> createState() => _SavedRandomPairsState();
-}
-
-class _SavedRandomPairsState extends State<SavedRandomPairs> {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: ListView.separated(
-          itemCount: widget.savedPairs.length,
-          separatorBuilder: (context, index) => const Divider(),
-          itemBuilder: ((context, index) => ListTile(
-                title: Text(
-                  widget.savedPairs[index],
-                  style: Theme.of(context).textTheme.headline4,
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.remove),
-                  onPressed: () =>
-                      setState(() => widget.savedPairs.removeAt(index)),
-                ),
-              )),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-          onPressed: () => Navigator.of(context).pop(widget.savedPairs),
-          child: const Icon(Icons.save)),
-    );
-  }
-}
-
-class RandomPairs extends StatefulWidget {
-  const RandomPairs({
-    super.key,
-  });
-
-  //final int count;
-  final String title = "Random generated names";
-  @override
-  State<RandomPairs> createState() => _RandomPairsState();
-}
-
-class _RandomPairsState extends State<RandomPairs> {
-  final _generatedNames = <String>[];
-  final _favouritedNames = <String>[];
-  late final SharedPreferences _db;
-
-  @override
-  void initState() {
-    super.initState();
-    SharedPreferences.getInstance().then((SharedPreferences db) {
-      _db = db;
-      setState(() {
-        _generatedNames.addAll(_db.getStringList('generated') ?? []);
-        _favouritedNames.addAll(_db.getStringList('saved') ?? []);
-      });
-    });
-  }
-
-  void _incrementCounter() {
-    setState(() {
-      generateWordPairs()
-          .take(1)
-          .forEach((element) => _generatedNames.add(element.asPascalCase));
-      _db.setStringList('generated', _generatedNames);
-    });
-  }
-
-  void _showSaved(BuildContext context) async {
-    final List<String> result = await Navigator.of(context).push(
-        MaterialPageRoute(
-            builder: ((context) =>
-                SavedRandomPairs(savedPairs: _favouritedNames))));
-
-    _favouritedNames.removeWhere((element) => !result.contains(element));
-    _db.setStringList('saved', _favouritedNames);
-    _db.setStringList('generated', _generatedNames);
-    setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        actions: [
-          IconButton(
-              onPressed: () => _showSaved(context),
-              icon: const Icon(Icons.list))
-        ],
-      ),
-      body: Center(
-        child: ListView.separated(
-          itemBuilder: (context, i) => ListTile(
-              title: Text(
-                _generatedNames[i],
-                style: Theme.of(context).textTheme.headline4,
-              ),
-              trailing: IconButton(
-                icon: Icon(
-                  _favouritedNames.contains(_generatedNames[i])
-                      ? Icons.favorite
-                      : Icons.favorite_border,
-                  color: _favouritedNames.contains(_generatedNames[i])
-                      ? Colors.red
-                      : null,
-                  semanticLabel: _favouritedNames.contains(_generatedNames[i])
-                      ? "Remove from saved"
-                      : "Save",
-                ),
-                onPressed: (() => setState(() {
-                      _favouritedNames.contains(_generatedNames[i])
-                          ? _favouritedNames.remove(_generatedNames[i])
-                          : _favouritedNames.add(_generatedNames[i]);
-                    })),
-              ),
-              leading: Container(
-                alignment: Alignment.center,
-                height: 256,
-                width: 64,
-                child: Image.network(
-                    "https://kr1bas.github.io/mmdb/img/mashle/mashle-${i + 1}.jpg"),
-              )),
-          separatorBuilder: (c, i) => const Divider(),
-          itemCount: _generatedNames.length,
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        hoverElevation: 12,
-        child: const Icon(Icons.add),
       ),
     );
   }

@@ -63,7 +63,7 @@ class Manga {
         "img-name":$imgName}''';
   }
 
-  void removeVolumeFromLibrary(int volNumber) {
+  void removeVolumeFromLibrary(BuildContext context, int volNumber) {
     SharedPreferences.getInstance().then((db) {
       final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
       final savedVolumesList = db.getStringList(uuid) ?? [];
@@ -80,10 +80,13 @@ class Manga {
               : db.setStringList('savedMangasUUID', savedMangaList);
         }
       }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Volume successfully removed.')));
     });
   }
 
-  void addVolumeToLibrary(int volNumber) {
+  void addVolumeToLibrary(BuildContext context, int volNumber) {
     //first check if manga is already stored
     SharedPreferences.getInstance().then((db) {
       final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
@@ -91,12 +94,19 @@ class Manga {
         final savedVolumesList = db.getStringList(uuid) ?? [];
         if (!savedVolumesList.contains(volNumber.toString())) {
           savedVolumesList.add(volNumber.toString());
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Volume added!')));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Volume already in library.')));
         }
         db.setStringList(uuid, savedVolumesList);
       } else {
         savedMangaList.add(uuid);
         db.setStringList('savedMangasUUID', savedMangaList);
         db.setStringList(uuid, [volNumber.toString()]);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Volume added!')));
       }
     });
   }
@@ -183,7 +193,7 @@ class Manga {
           );
         })) {
       case 'action':
-        action.call(volNumber);
+        action.call(context, volNumber);
         break;
       case null:
         break;
@@ -209,14 +219,15 @@ class Manga {
           boxShadow: [
             BoxShadow(
               color: Colors.grey.withOpacity(0.2),
-              spreadRadius: 2,
-              blurRadius: 5,
+              spreadRadius: 1.5,
+              blurRadius: 3,
               offset: const Offset(0, 1),
             )
           ],
         ),
         alignment: Alignment.center,
-        child: image,
+        child:
+            ClipRRect(borderRadius: BorderRadius.circular(4.0), child: image),
       ),
     );
   }
