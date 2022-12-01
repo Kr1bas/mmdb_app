@@ -31,9 +31,13 @@ class MyApp extends StatelessWidget {
 
 //Theese classes are used to create the home page
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({
+    super.key,
+    this.startingPage = 0,
+  });
 
   final String homePageTitle = "Welcome to MMDB!";
+  final int startingPage;
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -47,6 +51,9 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _pages.add(const DisplayPage());
     _pages.add(const LibraryPage());
+    if (widget.startingPage > 0 && widget.startingPage < _pages.length) {
+      currentPageIndex = widget.startingPage;
+    }
   }
 
   @override
@@ -115,6 +122,7 @@ class MangaListItem extends StatelessWidget {
     Navigator.of(context).push(MaterialPageRoute(
         builder: ((context) => MangaPage(
               manga: mangaData!,
+              selectedIndex: 0,
             ))));
   }
 
@@ -205,19 +213,48 @@ class MangaListItem extends StatelessWidget {
 
 // Theese classes are used to create each manga specific page
 class MangaPage extends StatefulWidget {
-  const MangaPage({super.key, required this.manga});
+  const MangaPage(
+      {super.key, required this.manga, required this.selectedIndex});
 
   final Manga manga;
-
+  final int selectedIndex;
   @override
   State<MangaPage> createState() => _MangaPageState();
 }
 
 class _MangaPageState extends State<MangaPage> {
+  void _addEveryVolumeToLibrary() {
+    for (var vol in widget.manga.volumes) {
+      widget.manga.addVolumeToLibrary(context, vol, false, false);
+    }
+    for (var vars in widget.manga.variants) {
+      widget.manga.addVolumeToLibrary(context, vars, true, false);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Added every volume to library")));
+  }
+
+  void _navigateTo(int index) {
+    Navigator.of(context)
+      ..pop()
+      ..pop()
+      ..push(MaterialPageRoute(
+          builder: ((context) => HomePage(
+                startingPage: index,
+              ))));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.manga.title)),
+      appBar: AppBar(
+        title: Text(widget.manga.title),
+        actions: [
+          IconButton(
+              onPressed: _addEveryVolumeToLibrary,
+              icon: const Icon(Icons.library_add_rounded)),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
@@ -396,6 +433,16 @@ class _MangaPageState extends State<MangaPage> {
             ],
           ),
         ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: widget.selectedIndex,
+        onDestinationSelected: (int index) => _navigateTo(index),
+        destinations: const [
+          NavigationDestination(
+              icon: Icon(Icons.view_carousel_rounded), label: 'MMDB Library'),
+          NavigationDestination(
+              icon: Icon(Icons.menu_book_rounded), label: 'My mangas')
+        ],
       ),
     );
   }
@@ -620,21 +667,39 @@ class _LibraryPageState extends State<LibraryPage> {
     return volumes;
   }
 
-  Future<Map<Manga, List<int>>> _reloadPreferences() async {
-    final Map<Manga, List<int>> volumes = <Manga, List<int>>{};
-    //First get the list of saved manga:
-    _mangaList.clear();
-    _mangaList.addAll(_db.getStringList('savedMangasUUID') ?? []);
-    //then iterate for each manga and retrieve saved volumes
-    for (var mangaUUID in _mangaList) {
-      final vols =
-          _db.getStringList(mangaUUID)?.map((e) => int.parse(e)).toList() ?? [];
-      vols.sort();
-      final manga = await Manga.getMangaByUUID(uuid: mangaUUID);
-      volumes.addEntries({manga: vols}.entries);
+  Future<void> _removeEveryVolume(Manga manga, List<int> savedVolumes) async {
+    for (var vol in savedVolumes) {
+      manga.removeVolumeFromLibrary(context, vol.abs(), vol < 0, false);
     }
-    _volumes.clear();
-    return volumes;
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Removed every volume from library")));
+  }
+
+  void _openMangaMenu(Manga manga, List<int> savedVolumeList) async {
+    switch (await showDialog<String>(
+        context: context,
+        builder: (BuildContext context) {
+          return SimpleDialog(
+            title: Text(manga.title),
+            children: <Widget>[
+              SimpleDialogOption(
+                onPressed: () {
+                  Navigator.pop(context, 'rem');
+                },
+                child: const Text('Remove every volume.'),
+              ),
+            ],
+          );
+        })) {
+      case 'rem':
+        _removeEveryVolume(manga, savedVolumeList).then((value) {
+          setState(() {});
+        });
+        break;
+      case null:
+        setState(() {});
+        break;
+    }
   }
 
   List<Widget> _getChildrens() {
@@ -645,6 +710,7 @@ class _LibraryPageState extends State<LibraryPage> {
         SizedBox(
           height: 45,
           child: TextButton(
+            onLongPress: () => _openMangaMenu(manga, savedVolumesList),
             onPressed: () => _openMangaPage(context, manga),
             child: ListTile(
               title: Text(
@@ -685,6 +751,7 @@ class _LibraryPageState extends State<LibraryPage> {
     Navigator.of(context).push(MaterialPageRoute(
         builder: ((context) => MangaPage(
               manga: mangaData!,
+              selectedIndex: 1,
             ))));
   }
 

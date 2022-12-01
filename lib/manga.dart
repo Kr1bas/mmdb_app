@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:mmdb_app/network.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// TODO add comparator
 class Manga implements Comparable<Manga> {
   const Manga(
       {required this.uuid,
@@ -66,15 +65,16 @@ class Manga implements Comparable<Manga> {
 
   @override
   int compareTo(Manga other) {
-    return this.title.compareTo(other.title);
+    if (uuid == other.uuid) {
+      return 0;
+    }
+    return title.compareTo(other.title);
   }
 
-  void removeVolumeFromLibrary(
-      BuildContext context, int volumeNumber, bool isVariant) {
+  void removeVolumeFromLibrary(BuildContext context, int volumeNumber,
+      bool isVariant, bool showSnackBar) {
     SharedPreferences.getInstance().then((db) {
       var volNumber = isVariant ? "-$volumeNumber" : "$volumeNumber";
-      print(
-          "removeVolumeFromLibrary(context,$volumeNumber,$isVariant): volNumber = $volNumber");
       final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
       final savedVolumesList = db.getStringList(uuid) ?? [];
 
@@ -90,37 +90,37 @@ class Manga implements Comparable<Manga> {
               : db.setStringList('savedMangasUUID', savedMangaList);
         }
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Volume successfully removed.')));
+      if (showSnackBar) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Volume successfully removed.')));
+      }
     });
   }
 
-  void addVolumeToLibrary(
-      BuildContext context, int volumeNumber, bool isVariant) {
+  void addVolumeToLibrary(BuildContext context, int volumeNumber,
+      bool isVariant, bool showSnackBar) {
     SharedPreferences.getInstance().then((db) {
+      var snackbartext = 'Volume added!';
       var volNumber = isVariant ? "-$volumeNumber" : "$volumeNumber";
-      print(
-          "addVolumeToLibrary(context,$volumeNumber,$isVariant): volNumber = $volNumber");
       final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
       //first check if manga is already stored
       if (savedMangaList.contains(uuid)) {
         final savedVolumesList = db.getStringList(uuid) ?? [];
         if (!savedVolumesList.contains(volNumber)) {
           savedVolumesList.add(volNumber);
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('Volume added!')));
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Volume already in library.')));
+          snackbartext = 'Volume already in library.';
         }
         db.setStringList(uuid, savedVolumesList);
       } else {
         savedMangaList.add(uuid);
         db.setStringList('savedMangasUUID', savedMangaList);
         db.setStringList(uuid, [volNumber.toString()]);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Volume added!')));
+
+        if (showSnackBar) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(snackbartext)));
+        }
       }
     });
   }
@@ -194,7 +194,6 @@ class Manga implements Comparable<Manga> {
         context: context,
         builder: (BuildContext context) {
           return SimpleDialog(
-            title: const Text('Title'),
             children: <Widget>[
               Container(padding: const EdgeInsets.all(6.0), child: image),
               const Divider(),
@@ -208,8 +207,7 @@ class Manga implements Comparable<Manga> {
           );
         })) {
       case 'action':
-        print("calling: action(context,$volNumber,$isVariant)");
-        action(context, volNumber, isVariant);
+        action(context, volNumber, isVariant, true);
         break;
       case null:
         break;
