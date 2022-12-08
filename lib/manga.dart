@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:mmdb_app/network.dart';
@@ -91,8 +91,8 @@ class Manga implements Comparable<Manga> {
         }
       }
       if (showSnackBar) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Volume successfully removed.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(AppLocalizations.of(context)!.volumeRemovedLabel)));
       }
     });
   }
@@ -100,7 +100,7 @@ class Manga implements Comparable<Manga> {
   void addVolumeToLibrary(BuildContext context, int volumeNumber,
       bool isVariant, bool showSnackBar) {
     SharedPreferences.getInstance().then((db) {
-      var snackbartext = 'Volume added!';
+      var snackbartext = AppLocalizations.of(context)!.volumeAddedLabel;
       var volNumber = isVariant ? "-$volumeNumber" : "$volumeNumber";
       final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
       //first check if manga is already stored
@@ -109,7 +109,8 @@ class Manga implements Comparable<Manga> {
         if (!savedVolumesList.contains(volNumber)) {
           savedVolumesList.add(volNumber);
         } else {
-          snackbartext = 'Volume already in library.';
+          snackbartext =
+              AppLocalizations.of(context)!.volumeAlreadyInLibraryLabel;
         }
         db.setStringList(uuid, savedVolumesList);
       } else {

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:mmdb_app/manga.dart';
 import 'package:mmdb_app/network.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 void main() {
   runApp(const MyApp());
@@ -24,6 +26,16 @@ class MyApp extends StatelessWidget {
             headline6: TextStyle(color: Colors.blueGrey)),*/
         primarySwatch: Colors.amber,
       ),
+      localizationsDelegates: const [
+        AppLocalizations.delegate, // Add this line
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', ''), // English, no country code
+        Locale('it', ''), // Spanish, no country code
+      ],
       home: const HomePage(),
     );
   }
@@ -36,7 +48,6 @@ class HomePage extends StatefulWidget {
     this.startingPage = 0,
   });
 
-  final String homePageTitle = "Welcome to MMDB!";
   final int startingPage;
   @override
   State<HomePage> createState() => _HomePageState();
@@ -60,18 +71,20 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.homePageTitle),
+        title: Text(AppLocalizations.of(context)!.homePageTitle),
       ),
       body: _pages[currentPageIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentPageIndex,
         onDestinationSelected: (int index) =>
             setState(() => currentPageIndex = index),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-              icon: Icon(Icons.view_carousel_rounded), label: 'MMDB Library'),
+              icon: const Icon(Icons.view_carousel_rounded),
+              label: AppLocalizations.of(context)!.mmdbLibraryLabel),
           NavigationDestination(
-              icon: Icon(Icons.menu_book_rounded), label: 'My mangas')
+              icon: const Icon(Icons.menu_book_rounded),
+              label: AppLocalizations.of(context)!.myMangasLabel)
         ],
       ),
     );
@@ -230,8 +243,9 @@ class _MangaPageState extends State<MangaPage> {
     for (var vars in widget.manga.variants) {
       widget.manga.addVolumeToLibrary(context, vars, true, false);
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Added every volume to library")));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            AppLocalizations.of(context)!.addedEveryVolumeToLibraryLabel)));
   }
 
   void _navigateTo(int index) {
@@ -265,7 +279,7 @@ class _MangaPageState extends State<MangaPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Japanese Title:  ',
+                      AppLocalizations.of(context)!.originalTitleLabel,
                       style: Theme.of(context).textTheme.headline5,
                     ),
                     Text(
@@ -284,7 +298,7 @@ class _MangaPageState extends State<MangaPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Story by  ',
+                      AppLocalizations.of(context)!.storyByLabel,
                       style: Theme.of(context).textTheme.headline5,
                     ),
                     Text(
@@ -303,7 +317,7 @@ class _MangaPageState extends State<MangaPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Designs by  ',
+                      AppLocalizations.of(context)!.designsByLabel,
                       style: Theme.of(context).textTheme.headline5,
                     ),
                     Text(
@@ -322,7 +336,7 @@ class _MangaPageState extends State<MangaPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Genre:  ',
+                      AppLocalizations.of(context)!.genreLabel,
                       style: Theme.of(context).textTheme.headline5,
                     ),
                     Text(
@@ -341,7 +355,7 @@ class _MangaPageState extends State<MangaPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Published by  ',
+                      AppLocalizations.of(context)!.editorLabel,
                       style: Theme.of(context).textTheme.headline5,
                     ),
                     Text(
@@ -360,7 +374,9 @@ class _MangaPageState extends State<MangaPage> {
                       children: <Widget>[
                         ListTile(
                           title: Text(
-                              '${widget.manga.volumes.length} volumes published: ',
+                              AppLocalizations.of(context)!
+                                  .numberNormalVolumesLabel(
+                                      widget.manga.volumes.length),
                               style: Theme.of(context).textTheme.headline5),
                         ),
                         SizedBox(
@@ -382,7 +398,8 @@ class _MangaPageState extends State<MangaPage> {
                                       image: e.value,
                                       volNumber: widget.manga.volumes[e.key],
                                       action: widget.manga.addVolumeToLibrary,
-                                      actionTitle: 'Add to Library',
+                                      actionTitle: AppLocalizations.of(context)!
+                                          .addToLibraryLabel,
                                     ))
                                 .toList(),
                           ),
@@ -398,7 +415,9 @@ class _MangaPageState extends State<MangaPage> {
                       children: <Widget>[
                         ListTile(
                           title: Text(
-                              '${widget.manga.variants.length} special edition published: ',
+                              AppLocalizations.of(context)!
+                                  .numberVariantPublishedLabel(
+                                      widget.manga.variants.length),
                               style: Theme.of(context).textTheme.headline5),
                         ),
                         SizedBox(
@@ -419,7 +438,8 @@ class _MangaPageState extends State<MangaPage> {
                                       image: e.value,
                                       volNumber: widget.manga.variants[e.key],
                                       action: widget.manga.addVolumeToLibrary,
-                                      actionTitle: 'Add to Library',
+                                      actionTitle: AppLocalizations.of(context)!
+                                          .addToLibraryLabel,
                                       isVariant: true,
                                     ))
                                 .toList(),
@@ -437,11 +457,13 @@ class _MangaPageState extends State<MangaPage> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: widget.selectedIndex,
         onDestinationSelected: (int index) => _navigateTo(index),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-              icon: Icon(Icons.view_carousel_rounded), label: 'MMDB Library'),
+              icon: const Icon(Icons.view_carousel_rounded),
+              label: AppLocalizations.of(context)!.mmdbLibraryLabel),
           NavigationDestination(
-              icon: Icon(Icons.menu_book_rounded), label: 'My mangas')
+              icon: const Icon(Icons.menu_book_rounded),
+              label: AppLocalizations.of(context)!.myMangasLabel)
         ],
       ),
     );
@@ -674,8 +696,8 @@ class _LibraryPageState extends State<LibraryPage> {
     for (var vol in savedVolumes) {
       manga.removeVolumeFromLibrary(context, vol.abs(), vol < 0, false);
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Removed every volume from library")));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(AppLocalizations.of(context)!.removedEveryVolumeLabel)));
   }
 
   void _openMangaMenu(Manga manga, List<int> savedVolumeList) async {
@@ -739,7 +761,8 @@ class _LibraryPageState extends State<LibraryPage> {
                       image: manga.getVolumeCover(
                           volumeNumber: vol.abs(), isVariant: (vol < 0)),
                       volNumber: vol.abs(),
-                      actionTitle: "Remove from library",
+                      actionTitle:
+                          AppLocalizations.of(context)!.removeFromLibraryLabel,
                       action: manga.removeVolumeFromLibrary,
                       isVariant: vol < 0))
                   .toList()),
@@ -764,8 +787,8 @@ class _LibraryPageState extends State<LibraryPage> {
       return const LinearProgressIndicator();
     }
     if (_volumes.isEmpty) {
-      return const Center(
-        child: Text("You have no saved manga"),
+      return Center(
+        child: Text(AppLocalizations.of(context)!.noSavedMangaLabel),
       );
     }
     return SafeArea(

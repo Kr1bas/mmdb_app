@@ -1,0 +1,38 @@
+{
+  "addedEveryVolumeToLibraryLabel": "Added every volume to library",
+  "addToLibraryLabel": "Add to Library",
+  "designsByLabel": "Designs by  ",
+  "editorLabel": "Published by  ",
+  "genreLabel": "Genre:  ",
+  "helloWorld": "Hello World!",
+  "@helloWorld": {
+    "description": "The conventional newborn programmer greeting"
+  },
+  "homePageTitle": "Welcome to MMDB!",
+  "mmdbLibraryLabel": "MMDB Library",
+  "myMangasLabel": "My mangas",
+  "noSavedMangaLabel": "You have no saved manga",
+  "numberNormalVolumesLabel": "{volumesNumber} volumes published: ",
+  "@numberNormalVolumesLabel": {
+    "placeholders": {
+      "volumesNumber": {
+        "type": "int"
+      }
+    }
+  },
+  "numberVariantPublishedLabel": "{variantsNumber} special edition published: ",
+  "@numberVariantPublishedLabel": {
+    "placeholders": {
+      "variantsNumber": {
+        "type": "int"
+      }
+    }
+  },
+  "originalTitleLabel": "Original Title:  ",
+  "removedEveryVolumeLabel": "Removed every volume from library",
+  "removeFromLibraryLabel": "Remove from library",
+  "storyByLabel": "Story by  ",
+  "volumeAddedLabel": "Volume added!",
+  "volumeAlreadyInLibraryLabel": "Volume already in library.",
+  "volumeRemovedLabel": "Volume successfully removed."
+}
