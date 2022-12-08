@@ -1,9 +1,9 @@
+import 'dart:collection';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:mmdb_app/manga.dart';
 import 'package:mmdb_app/network.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:collection';
 
 void main() {
   runApp(const MyApp());
@@ -626,6 +626,7 @@ class RenderParallax extends RenderBox
 // end of imported https://docs.flutter.dev/cookbook/effects/parallax-scrolling
 
 // These Classes are used to create the library page
+
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
 
@@ -637,14 +638,16 @@ class _LibraryPageState extends State<LibraryPage> {
   late final SharedPreferences _db;
   late final List<String> _mangaList;
   late final SplayTreeMap<Manga, List<int>> _volumes = SplayTreeMap();
-
+  bool _restored = false;
   @override
   void initState() {
     super.initState();
     SharedPreferences.getInstance().then((db) {
       _db = db;
-      _restorePreferences().then(
-          (volumes) => setState(() => _volumes.addEntries(volumes.entries)));
+      _restorePreferences().then((volumes) {
+        _restored = true;
+        setState(() => _volumes.addEntries(volumes.entries));
+      });
     });
   }
 
@@ -757,7 +760,14 @@ class _LibraryPageState extends State<LibraryPage> {
 
   @override
   Widget build(BuildContext context) {
-    //TODO transform into a future builder
+    if (!_restored) {
+      return const LinearProgressIndicator();
+    }
+    if (_volumes.isEmpty) {
+      return const Center(
+        child: Text("You have no saved manga"),
+      );
+    }
     return SafeArea(
       child: SingleChildScrollView(
         child: Column(
