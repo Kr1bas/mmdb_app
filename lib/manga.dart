@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
@@ -127,37 +128,40 @@ class Manga implements Comparable<Manga> {
   }
 
   /// Returns the volume cover of the selected cover or 404 if not exist
-  Image getVolumeCover({required int volumeNumber, bool isVariant = false}) {
+  CachedNetworkImage getVolumeCover(
+      {required int volumeNumber, bool isVariant = false}) {
     List<int> list = volumes;
     if (isVariant) {
       list = variants;
     }
-    Image img;
+    CachedNetworkImage img;
 
     if (!list.contains(volumeNumber)) {
-      img = const Image(
-        image: AssetImage('static/404_not_found.jpg'),
+      img = CachedNetworkImage(
+          imageUrl: 'file://static/404_not_found.jpg',
+          placeholder: (context, url) =>
+              const Image(image: AssetImage('static/404_not_found.jpg')));
+    } else {
+      img = CachedNetworkImage(
+        useOldImageOnUrlChange: true,
+        fadeOutDuration: const Duration(milliseconds: 200),
+        placeholder: (context, url) =>
+            const Image(image: AssetImage('static/404_not_found.jpg')),
+        imageUrl: Network.getMangaImageUrl(
+          mangaImgDir: imgDir,
+          mangaImgName: imgName,
+          volumeNumber: volumeNumber.toString(),
+          isVariant: isVariant,
+        ),
+        fit: BoxFit.fill,
       );
     }
-
-    img = Image.network(
-      Network.getMangaImageUrl(
-        mangaImgDir: imgDir,
-        mangaImgName: imgName,
-        volumeNumber: volumeNumber.toString(),
-        isVariant: isVariant,
-      ),
-      errorBuilder: (c, e, sT) =>
-          const Image(image: AssetImage('static/404_not_found.jpg')),
-      fit: BoxFit.fill,
-    );
-
     return img;
   }
 
   /// Returns every non variant volume cover of the manga
-  List<Image> getNormalVolumeCovers() {
-    final covers = <Image>[];
+  List<CachedNetworkImage> getNormalVolumeCovers() {
+    final covers = <CachedNetworkImage>[];
 
     for (var volumeNumber in volumes) {
       covers.add(getVolumeCover(volumeNumber: volumeNumber));
@@ -166,8 +170,8 @@ class Manga implements Comparable<Manga> {
   }
 
   /// Returns every variant volume cover of the manga
-  List<Image> getVariantVolumeCovers() {
-    final covers = <Image>[];
+  List<CachedNetworkImage> getVariantVolumeCovers() {
+    final covers = <CachedNetworkImage>[];
 
     for (var variantNumber in variants) {
       covers.add(getVolumeCover(volumeNumber: variantNumber, isVariant: true));
@@ -177,8 +181,8 @@ class Manga implements Comparable<Manga> {
   }
 
   /// Returns every volume cover of the manga
-  List<Image> getAllVolumeCovers() {
-    final covers = <Image>[];
+  List<CachedNetworkImage> getAllVolumeCovers() {
+    final covers = <CachedNetworkImage>[];
     covers.addAll(getNormalVolumeCovers());
     covers.addAll(getVariantVolumeCovers());
     return covers;
@@ -186,7 +190,7 @@ class Manga implements Comparable<Manga> {
 
   static Future<void> showVolume(
       {required BuildContext context,
-      required Image image,
+      required CachedNetworkImage image,
       required int volNumber,
       required String actionTitle,
       required Function action,
@@ -218,7 +222,7 @@ class Manga implements Comparable<Manga> {
   /// Wraps the volume image inside a box shadow with tap detection
   static Widget volumeImageWrapper(
       {required BuildContext context,
-      required Image image,
+      required CachedNetworkImage image,
       required int volNumber,
       required String actionTitle,
       required Function action,

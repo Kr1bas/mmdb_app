@@ -6,6 +6,7 @@ import 'package:mmdb_app/network.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 void main() {
   runApp(const MyApp());
@@ -146,13 +147,14 @@ class MangaListItem extends StatelessWidget {
             listItemContext: context,
             scrollable: Scrollable.of(context)!),
         children: [
-          Image.network(
-            Network.getMangaImageUrl(
+          CachedNetworkImage(
+            imageUrl: Network.getMangaImageUrl(
                 mangaImgDir: manga.imgDir,
                 mangaImgName: manga.imgName,
                 volumeNumber: '1'),
             key: _backgroundImageKey,
             fit: BoxFit.cover,
+            placeholder: ((context, url) => const LinearProgressIndicator()),
           )
         ]);
   }
@@ -800,3 +802,6 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 }
+
+
+// These Classes are used for the search page
