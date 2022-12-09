@@ -802,6 +802,3 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 }
-
-
-// These Classes are used for the search page
