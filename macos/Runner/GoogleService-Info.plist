@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>828377420319-qn3cltii6n7ke11960g12heaa3os5h7n.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.828377420319-qn3cltii6n7ke11960g12heaa3os5h7n</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCdXFceaBsPHE4frRR9wuntoB-ZPnvQbe4</string>
+	<key>GCM_SENDER_ID</key>
+	<string>828377420319</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.example.mmdbApp</string>
+	<key>PROJECT_ID</key>
+	<string>mmdb-51a60</string>
+	<key>STORAGE_BUCKET</key>
+	<string>mmdb-51a60.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:828377420319:ios:ab6d8d30ce034cf92e3b2a</string>
+	<key>DATABASE_URL</key>
+	<string>https://mmdb-51a60-default-rtdb.europe-west1.firebasedatabase.app</string>
+</dict>
+</plist>

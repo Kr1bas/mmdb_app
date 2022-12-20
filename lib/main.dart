@@ -56,6 +56,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _pages = <Widget>[];
+  final _actions = <Widget>[];
   int currentPageIndex = 0;
 
   @override
@@ -66,6 +67,19 @@ class _HomePageState extends State<HomePage> {
     if (widget.startingPage > 0 && widget.startingPage < _pages.length) {
       currentPageIndex = widget.startingPage;
     }
+
+    _actions.add(_getSettingsWidget());
+  }
+
+  void _showSettings(BuildContext context) {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: ((context) => const SettingsPage())));
+  }
+
+  Widget _getSettingsWidget() {
+    return IconButton(
+        onPressed: (() => _showSettings(context)),
+        icon: const Icon(Icons.settings));
   }
 
   @override
@@ -73,6 +87,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(AppLocalizations.of(context)!.homePageTitle),
+        actions: _actions,
       ),
       body: _pages[currentPageIndex],
       bottomNavigationBar: NavigationBar(
@@ -798,6 +813,61 @@ class _LibraryPageState extends State<LibraryPage> {
         child: Column(
           children: _getChildrens(),
         ),
+      ),
+    );
+  }
+}
+
+// These classes are used to open settings
+
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  void _saveSettings() {}
+
+  Widget _getLocaleSettingsEntry() {
+    return ListTile(
+      title: Text(
+        AppLocalizations.of(context)!.selectedLanguageLabel,
+        style: Theme.of(context).textTheme.headline6,
+      ),
+      trailing: TextButton(
+        onPressed: (() {
+          return;
+        }),
+        child: Text(AppLocalizations.of(context)!.localeFlagLabel),
+      ),
+    );
+  }
+
+  List<Widget> _getSettingsWidget() {
+    final widgets = <Widget>[];
+
+    widgets.add(_getLocaleSettingsEntry());
+    return widgets;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bodyWidgets = _getSettingsWidget();
+    return Scaffold(
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.settingsLabel)),
+      body: SafeArea(
+        child: ListView.separated(
+            padding: const EdgeInsets.all(8.0),
+            itemBuilder: ((context, index) => bodyWidgets[index]),
+            separatorBuilder: ((context, index) =>
+                Divider(color: Theme.of(context).backgroundColor)),
+            itemCount: bodyWidgets.length),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _saveSettings(),
+        child: const Icon(Icons.save),
       ),
     );
   }

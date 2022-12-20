@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "828377420319",
+    "firebase_url": "https://mmdb-51a60-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "mmdb-51a60",
+    "storage_bucket": "mmdb-51a60.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:828377420319:android:603a96a86250d0152e3b2a",
+        "android_client_info": {
+          "package_name": "com.example.mmdb_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "828377420319-ai6vpc2oq11mse0c54at211m311r4tu8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8UEMt4ocbzksgSmF6sKqW-pQ9-0BySk8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "828377420319-ai6vpc2oq11mse0c54at211m311r4tu8.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "828377420319-qn3cltii6n7ke11960g12heaa3os5h7n.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.mmdbApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

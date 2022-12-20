@@ -1,35 +1,38 @@
 {
-    "addedEveryVolumeToLibraryLabel": "Aggiunti tutti i volumi alla libreria",
-    "addToLibraryLabel": "Aggiungi alla libreria",
-    "designsByLabel": "Disegni di ",
-    "editorLabel": "Pubblicato da  ",
-    "genreLabel": "Genere:  ",
-    "helloWorld": "Ciao Mondo!",
-    "homePageTitle": "Welcome to MMDB!",
-    "mmdbLibraryLabel": "MMDB Library",
-    "myMangasLabel": "I miei manga",
-    "noSavedMangaLabel": "Non hai salvato nessun manga",
-    "numberNormalVolumesLabel": "{volumesNumber} volumi pubblicati: ",
-    "@numberNormalVolumesLabel": {
-      "placeholders": {
-        "volumesNumber": {
-          "type": "int"
-        }
+  "addedEveryVolumeToLibraryLabel": "Aggiunti tutti i volumi alla libreria",
+  "addToLibraryLabel": "Aggiungi alla libreria",
+  "designsByLabel": "Disegni di ",
+  "editorLabel": "Pubblicato da  ",
+  "genreLabel": "Genere:  ",
+  "helloWorld": "Ciao Mondo!",
+  "homePageTitle": "Benvenuti in MMDB!",
+  "localeFlagLabel": "🇮🇹",
+  "mmdbLibraryLabel": "MMDB Library",
+  "myMangasLabel": "I miei manga",
+  "noSavedMangaLabel": "Non hai salvato nessun manga",
+  "numberNormalVolumesLabel": "{volumesNumber} volumi pubblicati: ",
+  "@numberNormalVolumesLabel": {
+    "placeholders": {
+      "volumesNumber": {
+        "type": "int"
       }
-    },
-    "numberVariantPublishedLabel": "{variantsNumber} edizioni speciali pubblicate: ",
-    "@numberVariantPublishedLabel": {
-      "placeholders": {
-        "variantsNumber": {
-          "type": "int"
-        }
+    }
+  },
+  "numberVariantPublishedLabel": "{variantsNumber} edizioni speciali pubblicate: ",
+  "@numberVariantPublishedLabel": {
+    "placeholders": {
+      "variantsNumber": {
+        "type": "int"
       }
-    },
-    "originalTitleLabel": "Titolo Originale:  ",
-    "removedEveryVolumeLabel": "Rimossi tutti i volumi dalla libreria",
-    "removeFromLibraryLabel": "Rimuovi dalla libreria",
-    "storyByLabel": "Storia di  ",
-    "volumeAddedLabel": "Volume aggiunto!",
-    "volumeAlreadyInLibraryLabel": "Volume già nella libreria.",
-    "volumeRemovedLabel": "Volume rimosso con successo."
-  }
+    }
+  },
+  "originalTitleLabel": "Titolo Originale:  ",
+  "removedEveryVolumeLabel": "Rimossi tutti i volumi dalla libreria",
+  "removeFromLibraryLabel": "Rimuovi dalla libreria",
+  "selectedLanguageLabel": "Lingua selezionata:",
+  "settingsLabel": "Impostazioni",
+  "storyByLabel": "Storia di  ",
+  "volumeAddedLabel": "Volume aggiunto!",
+  "volumeAlreadyInLibraryLabel": "Volume già nella libreria.",
+  "volumeRemovedLabel": "Volume rimosso con successo."
+}
