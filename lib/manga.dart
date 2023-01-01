@@ -1,69 +1,79 @@
-import 'dart:convert';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
-import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:mmdb_app/network.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mmdb_app/volume.dart';
 
 class Manga implements Comparable<Manga> {
-  const Manga(
-      {required this.uuid,
-      required this.title,
-      required this.titleOriginal,
-      required this.genres,
-      required this.story,
-      required this.design,
-      required this.editor,
-      required this.volumes,
-      required this.variants,
-      required this.imgDir,
-      required this.imgName});
-
-  factory Manga.fromJson(dynamic js) {
-    Manga m = Manga(
-        uuid: js['uuid'],
-        title: js['title'],
-        titleOriginal: js['title-original'],
-        genres: <String>[for (final x in js['genres']) x],
-        story: js['story'],
-        design: js['designs'],
-        editor: js['editor'],
-        volumes: <int>[for (final x in js['volumes']) x],
-        variants: <int>[for (final x in js['variants']) x],
-        imgDir: js['img-dir'],
-        imgName: js['img-name']);
-
-    return m;
-  }
-
   final String uuid;
+  final String author;
+  final String mangaka;
+  final String genre;
+  final String editor;
   final String title;
   final String titleOriginal;
-  final List<String> genres;
-  final String story;
-  final String design;
-  final String editor;
-  final List<int> volumes;
-  final List<int> variants;
-  final String imgDir;
-  final String imgName;
 
-  @override
-  String toString() {
-    return '''{"uuid":$uuid,
-        "title": $title,
-        "title-original": $titleOriginal,
-        "genres": $genres,
-        "story": $story,
-        "designs": $design,
-        "editor": $editor,
-        "volumes": $volumes,
-        "variants": $variants,
-        "img-dir":$imgDir,
-        "img-name":$imgName}''';
+  ///Default constructor
+  const Manga({
+    required this.uuid,
+    required this.author,
+    required this.mangaka,
+    required this.genre,
+    required this.editor,
+    required this.title,
+    required this.titleOriginal,
+  });
+
+  ///Firebase database volume constructor
+  factory Manga.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> snapshot,
+    SnapshotOptions? options,
+  ) {
+    final data = snapshot.data();
+
+    return Manga(
+      uuid: data?['mangaUUID'] ?? snapshot.id,
+      author: data?['mangaAuthor'] ?? emptyManga.author,
+      mangaka: data?['mangaMangaka'] ?? emptyManga.mangaka,
+      genre: data?['mangaGenre'] ?? emptyManga.genre,
+      editor: data?['mangaEditor'] ?? emptyManga.editor,
+      title: data?['mangaTitle'] ?? emptyManga.title,
+      titleOriginal: data?['mangaTitleOriginal'] ?? emptyManga.titleOriginal,
+    );
   }
 
+  /// WARNING: blocking function! sperimental!
+  static Future<Manga> fromUUID(String uuid) async {
+    Manga manga = emptyManga;
+    final db = FirebaseFirestore.instance;
+    var res = await db
+        .collection('mangas')
+        .doc(uuid)
+        .withConverter(
+            fromFirestore: Manga.fromFirestore,
+            toFirestore: (m, _) => m.toFirestore())
+        .get();
+    manga = res.data()!;
+    return manga;
+  }
+
+  /// Mapping volume
+  Map<String, dynamic> toFirestore() {
+    if (uuid == emptyManga.uuid) {
+      return {};
+    }
+    return {
+      "mangaUUID": uuid,
+      "mangaAuthor": author,
+      "mangaMangaka": mangaka,
+      "mangaGenre": genre,
+      "mangaEditor": editor,
+      "mangaTitle": title,
+      "mangaTitleOriginal": titleOriginal,
+    };
+  }
+
+  /// Manga a,b:
+  /// <li> a.uuid == b.uuid -> a==b
+  /// <li> a.uuid != b.uuid -> compare titles
   @override
   int compareTo(Manga other) {
     if (uuid == other.uuid) {
@@ -72,225 +82,106 @@ class Manga implements Comparable<Manga> {
     return title.compareTo(other.title);
   }
 
-  void removeVolumeFromLibrary(BuildContext context, int volumeNumber,
-      bool isVariant, bool showSnackBar) {
-    SharedPreferences.getInstance().then((db) {
-      var volNumber = isVariant ? "-$volumeNumber" : "$volumeNumber";
-      final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
-      final savedVolumesList = db.getStringList(uuid) ?? [];
-
-      if (savedVolumesList.contains(volNumber.toString())) {
-        savedVolumesList.remove(volNumber.toString());
-        if (savedVolumesList.isNotEmpty) {
-          db.setStringList(uuid, savedVolumesList);
-        } else {
-          db.remove(uuid);
-          savedMangaList.remove(uuid);
-          savedMangaList.isEmpty
-              ? db.remove('savedMangasUUID')
-              : db.setStringList('savedMangasUUID', savedMangaList);
-        }
-      }
-      if (showSnackBar) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(AppLocalizations.of(context)!.volumeRemovedLabel)));
-      }
-    });
+  @override
+  String toString() {
+    return '''{"mangaUUID":$uuid,
+        "mangaTitle": $title,
+        "mangaTitleOriginal": $titleOriginal,
+        "mangaGenre": $genre,
+        "mangaAuthor": $author,
+        "mangaMangaka": $mangaka,
+        "mangaEditor": $editor,
+        ''';
   }
 
-  void addVolumeToLibrary(BuildContext context, int volumeNumber,
-      bool isVariant, bool showSnackBar) {
-    SharedPreferences.getInstance().then((db) {
-      var snackbartext = AppLocalizations.of(context)!.volumeAddedLabel;
-      var volNumber = isVariant ? "-$volumeNumber" : "$volumeNumber";
-      final savedMangaList = db.getStringList('savedMangasUUID') ?? [];
-      //first check if manga is already stored
-      if (savedMangaList.contains(uuid)) {
-        final savedVolumesList = db.getStringList(uuid) ?? [];
-        if (!savedVolumesList.contains(volNumber)) {
-          savedVolumesList.add(volNumber);
-        } else {
-          snackbartext =
-              AppLocalizations.of(context)!.volumeAlreadyInLibraryLabel;
-        }
-        db.setStringList(uuid, savedVolumesList);
-      } else {
-        savedMangaList.add(uuid);
-        db.setStringList('savedMangasUUID', savedMangaList);
-        db.setStringList(uuid, [volNumber.toString()]);
+  ///Returns the list of all the volumes of the manga
+  Future<List<Volume>> getAllVolumesList() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    final db = FirebaseFirestore.instance;
+    final List<Volume> volumeList = <Volume>[];
+    final query = db
+        .collection('volumes')
+        .where('volumeMangaUUID', isEqualTo: uuid)
+        .withConverter(
+            fromFirestore: Volume.fromFirebase,
+            toFirestore: (volume, _) => volume.toFirestore());
 
-        if (showSnackBar) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(snackbartext)));
-        }
-      }
-    });
+    final volumes = await query.get();
+    for (var element in volumes.docs) {
+      volumeList.add(element.data());
+    }
+    volumeList.sort();
+    return volumeList;
   }
 
-  /// Returns the volume cover of the selected cover or 404 if not exist
-  CachedNetworkImage getVolumeCover(
-      {required int volumeNumber, bool isVariant = false}) {
-    List<int> list = volumes;
-    if (isVariant) {
-      list = variants;
-    }
-    CachedNetworkImage img;
+  /// Returns the list of all the non variant volumes of the manga
+  Future<List<Volume>> getNormalVolumesList() async {
+    final db = FirebaseFirestore.instance;
+    final List<Volume> volumeList = <Volume>[];
+    final query = db
+        .collection('volumes')
+        .where('volumeMangaUUID', isEqualTo: uuid)
+        .where('volumeIsVariant', isEqualTo: false)
+        .withConverter(
+            fromFirestore: Volume.fromFirebase,
+            toFirestore: (volume, _) => volume.toFirestore());
 
-    if (!list.contains(volumeNumber)) {
-      img = CachedNetworkImage(
-          imageUrl: 'file://static/404_not_found.jpg',
-          placeholder: (context, url) =>
-              const Image(image: AssetImage('static/404_not_found.jpg')));
-    } else {
-      img = CachedNetworkImage(
-        useOldImageOnUrlChange: true,
-        fadeOutDuration: const Duration(milliseconds: 200),
-        placeholder: (context, url) => const CircularProgressIndicator(),
-        imageUrl: Network.getMangaImageUrl(
-          mangaImgDir: imgDir,
-          mangaImgName: imgName,
-          volumeNumber: volumeNumber.toString(),
-          isVariant: isVariant,
-        ),
-        fit: BoxFit.fill,
-      );
+    final volumes = await query.get();
+    for (var element in volumes.docs) {
+      volumeList.add(element.data());
     }
-    return img;
+    return volumeList;
+  }
+
+  /// Returns the list of all the variant volumes of the manga
+  Future<List<Volume>> getVariantVolumesList() async {
+    final db = FirebaseFirestore.instance;
+    final List<Volume> volumeList = <Volume>[];
+    final query = db
+        .collection('volumes')
+        .where('volumeMangaUUID', isEqualTo: uuid)
+        .where('volumeIsVariant', isEqualTo: true)
+        .withConverter(
+            fromFirestore: Volume.fromFirebase,
+            toFirestore: (volume, _) => volume.toFirestore());
+
+    final volumes = await query.get();
+    for (var element in volumes.docs) {
+      volumeList.add(element.data());
+    }
+    return volumeList;
   }
 
   /// Returns every non variant volume cover of the manga
-  List<CachedNetworkImage> getNormalVolumeCovers() {
-    final covers = <CachedNetworkImage>[];
-
-    for (var volumeNumber in volumes) {
-      covers.add(getVolumeCover(volumeNumber: volumeNumber));
-    }
-    return covers;
-  }
-
-  /// Returns every variant volume cover of the manga
-  List<CachedNetworkImage> getVariantVolumeCovers() {
-    final covers = <CachedNetworkImage>[];
-
-    for (var variantNumber in variants) {
-      covers.add(getVolumeCover(volumeNumber: variantNumber, isVariant: true));
-    }
-
-    return covers;
+  Future<List<Image>> getNormalVolumesCovers() async {
+    final volumes = await getNormalVolumesList();
+    volumes.sort();
+    return volumes.map((e) => e.getVolumeImage()).toList();
   }
 
   /// Returns every volume cover of the manga
-  List<CachedNetworkImage> getAllVolumeCovers() {
-    final covers = <CachedNetworkImage>[];
-    covers.addAll(getNormalVolumeCovers());
-    covers.addAll(getVariantVolumeCovers());
-    return covers;
+  Future<List<Image>> getAllVolumesCovers() async {
+    final volumes = await getAllVolumesList();
+    volumes.sort();
+    //print(volumes);
+    return volumes.map((e) => e.getVolumeImage()).toList();
   }
 
-  static Future<void> showVolume(
-      {required BuildContext context,
-      required CachedNetworkImage image,
-      required int volNumber,
-      required String actionTitle,
-      required Function action,
-      bool isVariant = false}) async {
-    switch (await showDialog<String>(
-        context: context,
-        builder: (BuildContext context) {
-          return SimpleDialog(
-            children: <Widget>[
-              Container(padding: const EdgeInsets.all(6.0), child: image),
-              const Divider(),
-              SimpleDialogOption(
-                onPressed: () {
-                  Navigator.pop(context, 'action');
-                },
-                child: Text(actionTitle),
-              ),
-            ],
-          );
-        })) {
-      case 'action':
-        action(context, volNumber, isVariant, true);
-        break;
-      case null:
-        break;
-    }
-  }
-
-  /// Wraps the volume image inside a box shadow with tap detection
-  static Widget volumeImageWrapper(
-      {required BuildContext context,
-      required CachedNetworkImage image,
-      required int volNumber,
-      required String actionTitle,
-      required Function action,
-      bool isVariant = false}) {
-    return GestureDetector(
-      onTap: (() => showVolume(
-          context: context,
-          image: image,
-          volNumber: volNumber,
-          action: action,
-          actionTitle: actionTitle,
-          isVariant: isVariant)),
-      child: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              spreadRadius: 1.5,
-              blurRadius: 3,
-              offset: const Offset(0, 1),
-            )
-          ],
-        ),
-        alignment: Alignment.center,
-        child:
-            ClipRRect(borderRadius: BorderRadius.circular(4.0), child: image),
-      ),
-    );
-  }
-
-  /// Returns a Manga instance for the selected manga,
-  static Future<Manga> getMangaByUUID({required String uuid}) async {
-    final list = await Network.getMangaList();
-
-    for (var manga in list) {
-      if (manga['uuid'] == uuid) {
-        return getMangaByDir(dir: manga['dir']);
-      }
-    }
-    return emptyManga;
-  }
-
-  static Future<Manga> getMangaByDir({required String dir}) async {
-    final response = await http.get(Uri.parse(Network.getMangaUrl(dir: dir)));
-
-    if (response.statusCode == 200) {
-      final jsStart = response.body.indexOf('{');
-      final jsEnd = response.body.lastIndexOf('}') + 1;
-
-      final js = jsonDecode(response.body.substring(jsStart, jsEnd));
-
-      return Manga.fromJson(js);
-    } else if (response.statusCode == 404) {
-      throw ('getMangaByTitle($dir): 404 - Manga Not Found');
-    } else {
-      throw ('getMangaByTitle($dir): ${response.statusCode} - An error has occoured');
-    }
+  /// Returns every non variant volume cover of the manga
+  Future<List<Image>> getVariantVolumesCovers() async {
+    final volumes = await getNormalVolumesList();
+    volumes.sort();
+    return volumes.map((e) => e.getVolumeImage()).toList();
   }
 }
 
+///Default empty manga in case of errors
 const Manga emptyManga = Manga(
-    uuid: 'MangaNotFound',
-    title: 'MangaNotFound',
-    titleOriginal: 'MangaNotFound',
-    genres: ['MangaNotFound'],
-    story: 'MangaNotFound',
-    design: 'MangaNotFound',
-    editor: 'MangaNotFound',
-    volumes: [-1],
-    variants: [],
-    imgDir: 'MangaNotFound',
-    imgName: 'MangaNotFound');
+  uuid: 'MangaNotFound',
+  title: 'MangaNotFound',
+  titleOriginal: 'MangaNotFound',
+  genre: 'MangaNotFound',
+  author: 'MangaNotFound',
+  mangaka: 'MangaNotFound',
+  editor: 'MangaNotFound',
+);

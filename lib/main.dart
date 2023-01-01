@@ -1,14 +1,23 @@
 import 'dart:collection';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:mmdb_app/manga.dart';
+import 'package:mmdb_app/oldMangaClass.dart';
 import 'package:mmdb_app/network.dart';
+import 'package:mmdb_app/user_library.dart';
+import 'package:mmdb_app/volume.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:uuid/uuid.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -62,13 +71,23 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _pages.add(const DisplayPage());
-    _pages.add(const LibraryPage());
+
+    _pages.add(const OldDisplayPage());
+    _pages.add(const OldLibraryPage());
     if (widget.startingPage > 0 && widget.startingPage < _pages.length) {
       currentPageIndex = widget.startingPage;
     }
 
+    //_pages.clear();
+    _pages.add(const DisplayPage());
+    _pages.add(const LibraryPage());
     _actions.add(_getSettingsWidget());
+
+    SharedPreferences.getInstance().then((db) {
+      if (!db.getKeys().contains('userPreferencesUUID')) {
+        db.setString('userPreferencesUUID', const Uuid().v4());
+      }
+    });
   }
 
   void _showSettings(BuildContext context) {
@@ -100,7 +119,13 @@ class _HomePageState extends State<HomePage> {
               label: AppLocalizations.of(context)!.mmdbLibraryLabel),
           NavigationDestination(
               icon: const Icon(Icons.menu_book_rounded),
-              label: AppLocalizations.of(context)!.myMangasLabel)
+              label: AppLocalizations.of(context)!.myMangasLabel),
+          NavigationDestination(
+              icon: const Icon(Icons.view_carousel_rounded),
+              label: AppLocalizations.of(context)!.mmdbLibraryLabel),
+          NavigationDestination(
+              icon: const Icon(Icons.menu_book_rounded),
+              label: AppLocalizations.of(context)!.myMangasLabel),
         ],
       ),
     );
@@ -116,16 +141,26 @@ class DisplayPage extends StatefulWidget {
 
 class _DisplayPageState extends State<DisplayPage> {
   final _widgets = <MangaListItem>[];
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    Network.getMangaList().then((list) {
-      for (var mangaJS in list) {
-        Manga.getMangaByDir(dir: mangaJS['dir']).then((manga) {
-          setState(() => _widgets.add(MangaListItem(manga: manga)));
-        });
+
+    FirebaseFirestore.instance
+        .collection('mangas')
+        .orderBy('mangaTitle')
+        .withConverter(
+            fromFirestore: Manga.fromFirestore,
+            toFirestore: ((value, _) => value.toFirestore()))
+        .get()
+        .then((value) {
+      for (var element in value.docs) {
+        setState(() => _widgets.add(MangaListItem(
+              manga: element.data(),
+            )));
       }
+      _initialized = true;
     });
   }
 
@@ -133,11 +168,11 @@ class _DisplayPageState extends State<DisplayPage> {
   Widget build(BuildContext context) {
     _widgets.sort(
         ((MangaListItem a, MangaListItem b) => a.manga.compareTo(b.manga)));
-    return SingleChildScrollView(
-      child: Column(
-        children: _widgets,
-      ),
-    );
+    return _initialized
+        ? SafeArea(
+            child: ListView(children: _widgets),
+          )
+        : const LinearProgressIndicator();
   }
 }
 
@@ -147,9 +182,153 @@ class MangaListItem extends StatelessWidget {
   final GlobalKey _backgroundImageKey = GlobalKey();
   final Manga manga;
 
-  void _openMangaPage(BuildContext context, Manga? mangaData) {
+  void _openMangaPage(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute(
         builder: ((context) => MangaPage(
+              manga: manga,
+              selectedIndex: 0,
+            ))));
+  }
+
+  Widget _buildBackground(BuildContext context) {
+    return Flow(
+      delegate: ParallaxFlowDelegate(
+        scrollable: Scrollable.of(context)!,
+        listItemContext: context,
+        backgroundImageKey: _backgroundImageKey,
+      ),
+      children: [
+        FutureBuilder(
+            future: manga.getAllVolumesList(),
+            builder: ((context, snapshot) {
+              if (!snapshot.hasData) return const CircularProgressIndicator();
+              return snapshot.data?.first.getVolumeImage(
+                    key: _backgroundImageKey,
+                    fit: BoxFit.cover,
+                  ) ??
+                  emptyVolume.getVolumeImage();
+            }))
+      ],
+    );
+  }
+
+  Widget _buildGradient() {
+    return Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.6, 0.95],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitleAndSubtitle() {
+    return Positioned(
+      left: 20,
+      bottom: 20,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            manga.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            manga.author != manga.mangaka
+                ? '${manga.author} - ${manga.mangaka}'
+                : manga.author,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: GestureDetector(
+            onTap: () {
+              manga
+                  .getAllVolumesList()
+                  .then((value) => _openMangaPage(context));
+            },
+            child: Stack(
+              children: [
+                _buildBackground(context),
+                _buildGradient(),
+                _buildTitleAndSubtitle()
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// TODO remove once the new one is completed
+class OldDisplayPage extends StatefulWidget {
+  const OldDisplayPage({super.key});
+
+  @override
+  State<OldDisplayPage> createState() => _OldDisplayPageState();
+}
+
+class _OldDisplayPageState extends State<OldDisplayPage> {
+  final _widgets = <OldMangaListItem>[];
+
+  @override
+  void initState() {
+    super.initState();
+    Network.getMangaList().then((list) {
+      for (var mangaJS in list) {
+        OldMangaClass.getMangaByDir(dir: mangaJS['dir']).then((manga) {
+          setState(() => _widgets.add(OldMangaListItem(manga: manga)));
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _widgets.sort(((OldMangaListItem a, OldMangaListItem b) =>
+        a.manga.compareTo(b.manga)));
+    return SingleChildScrollView(
+      child: Column(
+        children: _widgets,
+      ),
+    );
+  }
+}
+
+class OldMangaListItem extends StatelessWidget {
+  OldMangaListItem({super.key, required this.manga});
+
+  final GlobalKey _backgroundImageKey = GlobalKey();
+  final OldMangaClass manga;
+
+  void _openMangaPage(BuildContext context, OldMangaClass? mangaData) {
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: ((context) => OldMangaPage(
               manga: mangaData!,
               selectedIndex: 0,
             ))));
@@ -164,8 +343,8 @@ class MangaListItem extends StatelessWidget {
         children: [
           CachedNetworkImage(
             imageUrl: Network.getMangaImageUrl(
-                mangaImgDir: manga.imgDir,
-                mangaImgName: manga.imgName,
+                mangaImgDir: manga.imgDir!,
+                mangaImgName: manga.imgName!,
                 volumeNumber: '1'),
             key: _backgroundImageKey,
             fit: BoxFit.cover,
@@ -241,23 +420,22 @@ class MangaListItem extends StatelessWidget {
   }
 }
 
-// Theese classes are used to create each manga specific page
-class MangaPage extends StatefulWidget {
-  const MangaPage(
+class OldMangaPage extends StatefulWidget {
+  const OldMangaPage(
       {super.key, required this.manga, required this.selectedIndex});
 
-  final Manga manga;
+  final OldMangaClass manga;
   final int selectedIndex;
   @override
-  State<MangaPage> createState() => _MangaPageState();
+  State<OldMangaPage> createState() => _OldMangaPageState();
 }
 
-class _MangaPageState extends State<MangaPage> {
+class _OldMangaPageState extends State<OldMangaPage> {
   void _addEveryVolumeToLibrary() {
-    for (var vol in widget.manga.volumes) {
+    for (var vol in widget.manga.volumes!) {
       widget.manga.addVolumeToLibrary(context, vol, false, false);
     }
-    for (var vars in widget.manga.variants) {
+    for (var vars in widget.manga.variants!) {
       widget.manga.addVolumeToLibrary(context, vars, true, false);
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -393,7 +571,7 @@ class _MangaPageState extends State<MangaPage> {
                           title: Text(
                               AppLocalizations.of(context)!
                                   .numberNormalVolumesLabel(
-                                      widget.manga.volumes.length),
+                                      widget.manga.volumes!.length),
                               style: Theme.of(context).textTheme.headline5),
                         ),
                         SizedBox(
@@ -410,10 +588,10 @@ class _MangaPageState extends State<MangaPage> {
                                 .getNormalVolumeCovers()
                                 .asMap()
                                 .entries
-                                .map((e) => Manga.volumeImageWrapper(
+                                .map((e) => OldMangaClass.volumeImageWrapper(
                                       context: context,
                                       image: e.value,
-                                      volNumber: widget.manga.volumes[e.key],
+                                      volNumber: widget.manga.volumes![e.key],
                                       action: widget.manga.addVolumeToLibrary,
                                       actionTitle: AppLocalizations.of(context)!
                                           .addToLibraryLabel,
@@ -434,7 +612,7 @@ class _MangaPageState extends State<MangaPage> {
                           title: Text(
                               AppLocalizations.of(context)!
                                   .numberVariantPublishedLabel(
-                                      widget.manga.variants.length),
+                                      widget.manga.variants!.length),
                               style: Theme.of(context).textTheme.headline5),
                         ),
                         SizedBox(
@@ -450,10 +628,10 @@ class _MangaPageState extends State<MangaPage> {
                                 .getVariantVolumeCovers()
                                 .asMap()
                                 .entries
-                                .map((e) => Manga.volumeImageWrapper(
+                                .map((e) => OldMangaClass.volumeImageWrapper(
                                       context: context,
                                       image: e.value,
-                                      volNumber: widget.manga.variants[e.key],
+                                      volNumber: widget.manga.variants![e.key],
                                       action: widget.manga.addVolumeToLibrary,
                                       actionTitle: AppLocalizations.of(context)!
                                           .addToLibraryLabel,
@@ -467,6 +645,274 @@ class _MangaPageState extends State<MangaPage> {
                   : Divider(
                       color: Theme.of(context).backgroundColor,
                     ),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: widget.selectedIndex,
+        onDestinationSelected: (int index) => _navigateTo(index),
+        destinations: [
+          NavigationDestination(
+              icon: const Icon(Icons.view_carousel_rounded),
+              label: AppLocalizations.of(context)!.mmdbLibraryLabel),
+          NavigationDestination(
+              icon: const Icon(Icons.menu_book_rounded),
+              label: AppLocalizations.of(context)!.myMangasLabel)
+        ],
+      ),
+    );
+  }
+}
+
+// Theese classes are used to create each manga specific page
+class MangaPage extends StatefulWidget {
+  const MangaPage(
+      {super.key, required this.manga, required this.selectedIndex});
+
+  final Manga manga;
+  final int selectedIndex;
+  @override
+  State<MangaPage> createState() => _MangaPageState();
+}
+
+class _MangaPageState extends State<MangaPage> {
+  /*
+  *  void _addEveryVolumeToLibrary() {
+    for (var vol in widget.manga.volumes!) {
+      widget.manga.addVolumeToLibrary(context, vol, false, false);
+    }
+    for (var vars in widget.manga.variants!) {
+      widget.manga.addVolumeToLibrary(context, vars, true, false);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            AppLocalizations.of(context)!.addedEveryVolumeToLibraryLabel)));
+  }
+  */
+
+  void _navigateTo(int index) {
+    Navigator.of(context)
+      ..pop()
+      ..pop()
+      ..push(MaterialPageRoute(
+          builder: ((context) => HomePage(
+                startingPage: index,
+              ))));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.manga.title),
+        actions: [
+          IconButton(
+              onPressed: () => print("_addEveryVolumeToLibrary"),
+              icon: const Icon(Icons.library_add_rounded)),
+        ],
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: <Widget>[
+              ListTile(
+                //titleOriginal
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppLocalizations.of(context)!.originalTitleLabel,
+                      style: Theme.of(context).textTheme.headline5,
+                    ),
+                    Text(
+                      widget.manga.titleOriginal,
+                      style: Theme.of(context).textTheme.headline6,
+                    )
+                  ],
+                ),
+              ),
+              Divider(
+                color: Theme.of(context).backgroundColor,
+              ),
+              ListTile(
+                //story
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppLocalizations.of(context)!.storyByLabel,
+                      style: Theme.of(context).textTheme.headline5,
+                    ),
+                    Text(
+                      widget.manga.author,
+                      style: Theme.of(context).textTheme.headline6,
+                    )
+                  ],
+                ),
+              ),
+              Divider(
+                color: Theme.of(context).backgroundColor,
+              ),
+              ListTile(
+                //designs
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppLocalizations.of(context)!.designsByLabel,
+                      style: Theme.of(context).textTheme.headline5,
+                    ),
+                    Text(
+                      widget.manga.mangaka,
+                      style: Theme.of(context).textTheme.headline6,
+                    )
+                  ],
+                ),
+              ),
+              Divider(
+                color: Theme.of(context).backgroundColor,
+              ),
+              ListTile(
+                //genres
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppLocalizations.of(context)!.genreLabel,
+                      style: Theme.of(context).textTheme.headline5,
+                    ),
+                    Text(
+                      widget.manga.genre,
+                      style: Theme.of(context).textTheme.headline6,
+                    )
+                  ],
+                ),
+              ),
+              Divider(
+                color: Theme.of(context).backgroundColor,
+              ),
+              ListTile(
+                // Editor
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppLocalizations.of(context)!.editorLabel,
+                      style: Theme.of(context).textTheme.headline5,
+                    ),
+                    Text(
+                      widget.manga.editor,
+                      style: Theme.of(context).textTheme.headline6,
+                    )
+                  ],
+                ),
+              ),
+              Divider(
+                color: Theme.of(context).backgroundColor,
+              ),
+              FutureBuilder(
+                  //normals
+                  future: widget.manga.getNormalVolumesList(),
+                  builder: ((context, snapshot) {
+                    if (snapshot.hasData) {
+                      List<Volume> volumeList = snapshot.data ?? [];
+                      if (volumeList.isEmpty) {
+                        return Divider(
+                            color: Theme.of(context).backgroundColor);
+                      } else {
+                        volumeList.sort();
+                        return Column(
+                          children: <Widget>[
+                            ListTile(
+                              title: Text(
+                                  AppLocalizations.of(context)!
+                                      .numberNormalVolumesLabel(
+                                          volumeList.length),
+                                  style: Theme.of(context).textTheme.headline5),
+                            ),
+                            SizedBox(
+                              height: 200,
+                              child: GridView.count(
+                                primary: false,
+                                padding: const EdgeInsets.all(6),
+                                crossAxisCount: 1,
+                                mainAxisSpacing: 6,
+                                scrollDirection: Axis.horizontal,
+                                childAspectRatio: 1.5,
+                                children: volumeList
+                                    .map((e) => e.volumeImageWrapper(
+                                            context: context,
+                                            action: e.showVolume,
+                                            argv: [
+                                              context,
+                                              AppLocalizations.of(context)!
+                                                  .addToLibraryLabel,
+                                              print
+                                            ]))
+                                    .toList(),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                    }
+                    return const CircularProgressIndicator();
+                  })),
+              Divider(
+                color: Theme.of(context).backgroundColor,
+              ),
+              FutureBuilder(
+                  //variants
+                  future: widget.manga.getVariantVolumesList(),
+                  builder: ((context, snapshot) {
+                    if (snapshot.hasData) {
+                      List<Volume> volumeList = snapshot.data ?? [];
+                      volumeList.sort();
+                      if (volumeList.isEmpty) {
+                        return Divider(
+                            color: Theme.of(context).backgroundColor);
+                      } else {
+                        return Column(
+                          children: <Widget>[
+                            ListTile(
+                              title: Text(
+                                  AppLocalizations.of(context)!
+                                      .numberVariantPublishedLabel(
+                                          volumeList.length),
+                                  style: Theme.of(context).textTheme.headline5),
+                            ),
+                            SizedBox(
+                              height: 200,
+                              child: GridView.count(
+                                primary: false,
+                                padding: const EdgeInsets.all(6),
+                                crossAxisCount: 1,
+                                mainAxisSpacing: 6,
+                                scrollDirection: Axis.horizontal,
+                                childAspectRatio: 1.5,
+                                children: volumeList
+                                    .map((e) => e.volumeImageWrapper(
+                                            context: context,
+                                            action: e.showVolume,
+                                            argv: [
+                                              context,
+                                              AppLocalizations.of(context)!
+                                                  .addToLibraryLabel,
+                                              print
+                                            ]))
+                                    .toList(),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                    }
+                    return const CircularProgressIndicator();
+                  })),
+              Divider(
+                color: Theme.of(context).backgroundColor,
+              ),
             ],
           ),
         ),
@@ -661,7 +1107,6 @@ class RenderParallax extends RenderBox
             Offset(0.0, childRect.top));
   }
 }
-
 // end of imported https://docs.flutter.dev/cookbook/effects/parallax-scrolling
 
 // These Classes are used to create the library page
@@ -674,9 +1119,269 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
+  late final String? _uuid;
+  late final UserLibrary _userLibrary;
+  bool _restored = false;
+
+  void _openMangaPage(BuildContext context, Manga manga) {
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: ((context) => MangaPage(
+              manga: manga,
+              selectedIndex: 0,
+            ))));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((sp) {
+      _uuid = sp.getString("userPreferencesUUID");
+      setState(() {
+        _restored = true;
+        print("LibraryPage.initState(): uuid = $_uuid ");
+        print("LibraryPage.initState():  restored = $_restored");
+      });
+    });
+  }
+
+  Future<List<Manga>> getSavedMangasByUser() async {
+    List<Manga> savedMangas = <Manga>[];
+    if (_uuid == null) return Future.sync(() => savedMangas);
+
+    final db = FirebaseFirestore.instance;
+    final res = await db.collection('users').doc(_uuid).get();
+
+    if (!res.exists) return savedMangas;
+
+    for (var uuid in res.data()?['userMangaUUIDList'] ?? []) {
+      savedMangas.add(await Manga.fromUUID(uuid));
+    }
+
+    return savedMangas;
+  }
+
+  Future<List<Volume>> getSavedVolumesByUserAndManga(Manga manga) async {
+    final List<Volume> volumes = <Volume>[];
+
+    var db = FirebaseFirestore.instance;
+    final query = await db.collection('users').doc(_uuid).get();
+
+    if (!query.exists) return volumes;
+
+    return volumes;
+  }
+
+  Future<SplayTreeMap<Manga, List<Volume>>> getSavedVolumesMapByUser() async {
+    final SplayTreeMap<Manga, List<Volume>> savedVolumes = SplayTreeMap();
+
+    final List<Manga> savedMangas = await getSavedMangasByUser();
+
+    if (savedMangas.isEmpty) {
+      return savedVolumes;
+    }
+
+    final db = FirebaseFirestore.instance;
+    var res = await db.collection('users').doc(_uuid).get();
+
+    if (!res.exists) {
+      return savedVolumes;
+    }
+
+    final volumesUUIDs = res.data()?['userVolumeUUIDList'] ?? [];
+
+    final List<Volume> savedVolumesList = <Volume>[];
+    for (var uuid in volumesUUIDs) {
+      var value = await Volume.getVolumeByUUID(uuid);
+      if (value.uuid != emptyVolume.uuid) {
+        savedVolumesList.add(value);
+      }
+    }
+    for (Manga manga in savedMangas) {
+      var v = <Volume>[];
+      for (var vol in savedVolumesList) {
+        if (vol.mangaUUID == manga.uuid) v.add(vol);
+      }
+      savedVolumes.addAll({manga: v});
+    }
+    return savedVolumes;
+  }
+
+  Widget _getChildren(Manga manga, Future<List<Volume>> volumes) {
+    print("LibraryPage.getChildren: manga = ${manga.title} ");
+
+    return FutureBuilder(
+      future: volumes,
+      builder: ((context, snapshot) {
+        print(
+            "LibraryPage.getChildren: snapshot.hasData = ${snapshot.hasData}");
+        return Column(
+          children: <Widget>[
+            SizedBox(
+              height: 45,
+              child: TextButton(
+                onLongPress: () =>
+                    print("_openMangaMenu(manga, savedVolumesList)"),
+                onPressed: () => _openMangaPage(context, manga),
+                child: ListTile(
+                  title: Text(
+                    manga.title,
+                    style: Theme.of(context).textTheme.headline5,
+                  ),
+                  trailing: const Icon(Icons.open_in_new),
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 200,
+              child: GridView.count(
+                  primary: false,
+                  padding: const EdgeInsets.all(6),
+                  crossAxisCount: 1,
+                  mainAxisSpacing: 6,
+                  scrollDirection: Axis.horizontal,
+                  childAspectRatio: 1.5,
+                  children: snapshot.hasData
+                      ? snapshot.data!
+                          .map((vol) => vol.volumeImageWrapper(
+                                context: context,
+                                argv: [
+                                  context,
+                                  AppLocalizations.of(context)!
+                                      .removeFromLibraryLabel,
+                                  print
+                                ],
+                                action: vol.showVolume,
+                              ))
+                          .toList()
+                      : [const CircularProgressIndicator()]),
+            )
+          ],
+        );
+      }),
+    );
+  }
+
+  Future<UserLibrary> _getUserLibrary() async {
+    print("LibraryPage.getUserLibrary(): start");
+    var db = FirebaseFirestore.instance;
+    final query = await db
+        .collection('users')
+        .doc(_uuid)
+        .withConverter(
+            fromFirestore: UserLibrary.fromFirestore,
+            toFirestore: (ul, _) => ul.toFirestore())
+        .get();
+    print("LibraryPage.getUserLibrary:  query.exist = ${query.exists}");
+    print("LibraryPage.getUserLibrary:  Done!");
+    return query.exists ? query.data()! : UserLibrary.emptyLibrary(_uuid);
+  }
+
+  Future<List<Widget>> _getBody() async {
+    print("LibraryPage.getBody(): Start! ");
+    List<Widget> children = <Widget>[];
+    List<Manga> mangas = await _userLibrary.getSavedMangas();
+    print(
+        "LibraryPage.getBody(): mangas = ${mangas.map((e) => e.title).toList().toString()} ");
+    for (var manga in mangas) {
+      children.add(
+          _getChildren(manga, _userLibrary.getSavedVolumesForManga(manga)));
+    }
+    return children;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_restored) {
+      print("LibraryPage.build(): restored = $_restored");
+      return const LinearProgressIndicator();
+    }
+    print("LibraryPage.build(): restored = $_restored");
+    return SafeArea(
+      child: FutureBuilder(
+        future: _getUserLibrary(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            print(
+                "LibraryPage.build(): _getUserLibrary.error = ${snapshot.error.toString()} ");
+            return Center(child: Text(snapshot.error.toString()));
+          } else if (snapshot.hasData) {
+            _userLibrary = snapshot.data!;
+            print(
+                "LibraryPage.build(): _userLibrary.empty = ${_userLibrary.isEmpty()}");
+
+            if (_userLibrary.isEmpty()) {
+              return Center(
+                  child: Text(AppLocalizations.of(context)!.noSavedMangaLabel));
+            }
+
+            return FutureBuilder(
+              future: _getBody(),
+              builder: ((context, snapshot) {
+                print("LibraryPage.build(): inFuturebuilder");
+                if (!snapshot.hasData) return const LinearProgressIndicator();
+                if (snapshot.hasError) {
+                  return Center(child: Text(snapshot.error.toString()));
+                }
+                print(
+                    "LibraryPage.build(): snapshot.hasData = ${snapshot.hasData}");
+                return SingleChildScrollView(
+                  child: Column(children: snapshot.data!),
+                );
+              }),
+            );
+          } else {
+            return const LinearProgressIndicator();
+          }
+        },
+      ),
+    );
+
+    /*
+    return SafeArea(
+      child: FutureBuilder(
+        future: getSavedVolumesMapByUser(),
+        builder: ((context, snapshot) {
+          if (!snapshot.hasData) return const LinearProgressIndicator();
+          if (snapshot.hasError) {
+            return Center(child: Text(snapshot.error.toString()));
+          }
+
+          List<Widget> children = <Widget>[];
+
+          if (snapshot.data!.isEmpty) {
+            return Center(
+                child: Text(AppLocalizations.of(context)!.noSavedMangaLabel));
+          }
+
+          for (var manga in snapshot.data!.keys) {
+            var volumes = snapshot.data![manga]!;
+            children.add(_getChildren(manga, volumes));
+          }
+
+          return SingleChildScrollView(
+            child: Column(
+              children: children,
+            ),
+          );
+        }),
+      ),
+    );
+    */
+  }
+}
+
+// TODO remove once the migration to firebase is completed
+class OldLibraryPage extends StatefulWidget {
+  const OldLibraryPage({super.key});
+
+  @override
+  State<OldLibraryPage> createState() => _OldLibraryPageState();
+}
+
+class _OldLibraryPageState extends State<OldLibraryPage> {
   late final SharedPreferences _db;
   late final List<String> _mangaList;
-  late final SplayTreeMap<Manga, List<int>> _volumes = SplayTreeMap();
+  late final SplayTreeMap<OldMangaClass, List<int>> _volumes = SplayTreeMap();
   bool _restored = false;
   @override
   void initState() {
@@ -690,8 +1395,8 @@ class _LibraryPageState extends State<LibraryPage> {
     });
   }
 
-  Future<Map<Manga, List<int>>> _restorePreferences() async {
-    final Map<Manga, List<int>> volumes = <Manga, List<int>>{};
+  Future<Map<OldMangaClass, List<int>>> _restorePreferences() async {
+    final Map<OldMangaClass, List<int>> volumes = <OldMangaClass, List<int>>{};
     //First get the list of saved manga:
     _mangaList = _db.getStringList('savedMangasUUID') ?? [];
     _mangaList.sort();
@@ -701,15 +1406,16 @@ class _LibraryPageState extends State<LibraryPage> {
       final vols =
           _db.getStringList(mangaUUID)?.map((e) => int.parse(e)).toList() ?? [];
       vols.sort(((a, b) => a.abs().compareTo(b.abs())));
-      final manga = await Manga.getMangaByUUID(uuid: mangaUUID);
+      final manga = await OldMangaClass.getMangaByUUID(uuid: mangaUUID);
       volumes.addEntries({manga: vols}.entries);
     }
-    SplayTreeMap.from(
-        volumes, ((Manga key1, Manga key2) => key1.compareTo(key2)));
+    SplayTreeMap.from(volumes,
+        ((OldMangaClass key1, OldMangaClass key2) => key1.compareTo(key2)));
     return volumes;
   }
 
-  Future<void> _removeEveryVolume(Manga manga, List<int> savedVolumes) async {
+  Future<void> _removeEveryVolume(
+      OldMangaClass manga, List<int> savedVolumes) async {
     for (var vol in savedVolumes) {
       manga.removeVolumeFromLibrary(context, vol.abs(), vol < 0, false);
     }
@@ -717,7 +1423,7 @@ class _LibraryPageState extends State<LibraryPage> {
         content: Text(AppLocalizations.of(context)!.removedEveryVolumeLabel)));
   }
 
-  void _openMangaMenu(Manga manga, List<int> savedVolumeList) async {
+  void _openMangaMenu(OldMangaClass manga, List<int> savedVolumeList) async {
     switch (await showDialog<String>(
         context: context,
         builder: (BuildContext context) {
@@ -773,7 +1479,7 @@ class _LibraryPageState extends State<LibraryPage> {
               scrollDirection: Axis.horizontal,
               childAspectRatio: 1.5,
               children: savedVolumesList
-                  .map((vol) => Manga.volumeImageWrapper(
+                  .map((vol) => OldMangaClass.volumeImageWrapper(
                       context: context,
                       image: manga.getVolumeCover(
                           volumeNumber: vol.abs(), isVariant: (vol < 0)),
@@ -790,9 +1496,9 @@ class _LibraryPageState extends State<LibraryPage> {
     return children;
   }
 
-  void _openMangaPage(BuildContext context, Manga? mangaData) {
+  void _openMangaPage(BuildContext context, OldMangaClass? mangaData) {
     Navigator.of(context).push(MaterialPageRoute(
-        builder: ((context) => MangaPage(
+        builder: ((context) => OldMangaPage(
               manga: mangaData!,
               selectedIndex: 1,
             ))));
