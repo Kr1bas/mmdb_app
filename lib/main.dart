@@ -677,6 +677,17 @@ class MangaPage extends StatefulWidget {
 }
 
 class _MangaPageState extends State<MangaPage> {
+  late final String _userUUID;
+
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then(
+      (value) {
+        _userUUID = value.getString('userPreferencesUUID')!;
+      },
+    );
+  }
+
   /*
   *  void _addEveryVolumeToLibrary() {
     for (var vol in widget.manga.volumes!) {
@@ -848,7 +859,8 @@ class _MangaPageState extends State<MangaPage> {
                                               context,
                                               AppLocalizations.of(context)!
                                                   .addToLibraryLabel,
-                                              print
+                                              e.addToLibrary,
+                                              _userUUID,
                                             ]))
                                     .toList(),
                               ),
@@ -899,7 +911,8 @@ class _MangaPageState extends State<MangaPage> {
                                               context,
                                               AppLocalizations.of(context)!
                                                   .addToLibraryLabel,
-                                              print
+                                              e.addToLibrary,
+                                              _userUUID,
                                             ]))
                                     .toList(),
                               ),
@@ -1273,7 +1286,18 @@ class _LibraryPageState extends State<LibraryPage> {
         .get();
     print("LibraryPage.getUserLibrary:  query.exist = ${query.exists}");
     print("LibraryPage.getUserLibrary:  Done!");
-    return query.exists ? query.data()! : UserLibrary.emptyLibrary(_uuid);
+    if (!query.exists) {
+      final ul = UserLibrary.emptyLibrary(_uuid);
+      db
+          .collection('users')
+          .doc(_uuid)
+          .withConverter(
+              fromFirestore: UserLibrary.fromFirestore,
+              toFirestore: (ul, _) => ul.toFirestore())
+          .set(ul);
+      return ul;
+    }
+    return query.data()!;
   }
 
   Future<List<Widget>> _getBody() async {

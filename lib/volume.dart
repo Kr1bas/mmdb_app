@@ -188,6 +188,7 @@ class Volume implements Comparable<Volume> {
   /// <li> argv[0] -> context
   /// <li> argv[1] -> actionTitle
   /// <li> argv[2] -> action
+  /// <li> argv[3] -> args to action
   Future<void> showVolume(List<dynamic> argv) async {
     switch (await showDialog<String>(
         context: argv[0],
@@ -207,11 +208,40 @@ class Volume implements Comparable<Volume> {
           );
         })) {
       case 'action':
-        argv[2]();
+        if (argv.length > 3) {
+          argv[2](argv[3]);
+        } else {
+          argv[2]();
+        }
         break;
       case null:
         break;
     }
+  }
+
+  /// <h5>Adds the volume to the user library.</h5>
+  /// <p>First checks if the manga is in the library:
+  /// If not: add the manga.
+  /// Then adds the volume.
+  /// <li> userUUID: the uuid of the user updating its library.
+  void addToLibrary(String userUUID) {
+    final db = FirebaseFirestore.instance;
+    db.collection('users').doc(userUUID).update({
+      'userMangaUUIDList': FieldValue.arrayUnion([mangaUUID])
+    }).onError((error, stackTrace) {
+      print("Volume<$uuid>.addToLibrary($userUUID): ${error.toString()}");
+      db.collection('users').doc(userUUID).set({
+        'userMangaUUIDList': [mangaUUID],
+        mangaUUID: [],
+      }, SetOptions(merge: true));
+      return db.collection('users').doc(userUUID).update({
+        'userMangaUUIDList': FieldValue.arrayUnion([mangaUUID])
+      });
+    }).then((_) {
+      db.collection('users').doc(userUUID).update({
+        mangaUUID: FieldValue.arrayUnion([uuid])
+      });
+    });
   }
 }
 
