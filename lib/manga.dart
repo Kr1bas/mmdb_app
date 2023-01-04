@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:mmdb_app/volume.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class Manga implements Comparable<Manga> {
   final String uuid;
@@ -172,6 +173,17 @@ class Manga implements Comparable<Manga> {
     final volumes = await getNormalVolumesList();
     volumes.sort();
     return volumes.map((e) => e.getVolumeImage()).toList();
+  }
+
+  /// Adds every volume of the manga to the user library
+  /// <li> userUUID -> the uuid of the user
+  void addEveryVolumeToLibrary(String userUUID, BuildContext context) {
+    getAllVolumesList()
+        .then((value) => value.forEach((element) =>
+            element.addToLibrary([userUUID, context], showSnackBar: false)))
+        .then((value) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(AppLocalizations.of(context)!
+                .addedEveryVolumeToLibraryLabel))));
   }
 }
 

@@ -14,26 +14,57 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
 import 'firebase_options.dart';
+import 'package:flutter_logs/flutter_logs.dart';
+
+void log(
+    {LogLevel logLevel = LogLevel.INFO,
+    String tag = 'debug',
+    String classOrigin = '',
+    String functionOrigin = '',
+    required String message}) {
+  FlutterLogs.logToFile(
+    logFileName: tag,
+    overwrite: false,
+    logMessage:
+        "${DateTime.now().toIso8601String().substring(0, 10)} - ${DateTime.now().toIso8601String().substring(11, 19)} - ${classOrigin.isNotEmpty ? classOrigin : ''}.${functionOrigin.isNotEmpty ? functionOrigin : ''} - $message",
+  );
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await FlutterLogs.initLogs(
+      logLevelsEnabled: [
+        LogLevel.INFO,
+        LogLevel.WARNING,
+        LogLevel.ERROR,
+        LogLevel.SEVERE
+      ],
+      timeStampFormat: TimeStampFormat.TIME_FORMAT_READABLE,
+      directoryStructure: DirectoryStructure.FOR_DATE,
+      logTypesEnabled: ["debug", "errors"],
+      logFileExtension: LogFileExtension.LOG,
+      logsWriteDirectoryName: "MMDB_Logs",
+      logsExportDirectoryName: "MMDB_Logs/Exported",
+      debugFileOperations: true,
+      isDebuggable: true);
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
+    log(
+        classOrigin: 'MyApp',
+        functionOrigin: 'build(context)',
+        message: 'Starting...');
     return MaterialApp(
       title: 'MMDB',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        /*dialogBackgroundColor: Colors.white,
-        scaffoldBackgroundColor: Colors.black54,
-        textTheme: const TextTheme(
-            headline5: TextStyle(color: Colors.indigo),
-            headline6: TextStyle(color: Colors.blueGrey)),*/
         primarySwatch: Colors.amber,
       ),
       localizationsDelegates: const [
@@ -70,6 +101,10 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void initState() {
+    log(
+        classOrigin: 'HomePageState',
+        functionOrigin: 'initState()',
+        message: 'Initializing Home Page');
     super.initState();
 
     _pages.add(const OldDisplayPage());
@@ -78,14 +113,18 @@ class _HomePageState extends State<HomePage> {
       currentPageIndex = widget.startingPage;
     }
 
-    //_pages.clear();
     _pages.add(const DisplayPage());
     _pages.add(const LibraryPage());
     _actions.add(_getSettingsWidget());
 
     SharedPreferences.getInstance().then((db) {
       if (!db.getKeys().contains('userPreferencesUUID')) {
-        db.setString('userPreferencesUUID', const Uuid().v4());
+        final newUUID = const Uuid().v4();
+        db.setString('userPreferencesUUID', newUUID);
+        log(
+            classOrigin: 'HomePageState',
+            functionOrigin: 'initState()',
+            message: 'Generating a new uuid: $newUUID');
       }
     });
   }
@@ -145,6 +184,11 @@ class _DisplayPageState extends State<DisplayPage> {
 
   @override
   void initState() {
+    log(
+      classOrigin: 'DisplayPageState',
+      functionOrigin: 'initState()',
+      message: 'Initializing display page.',
+    );
     super.initState();
 
     FirebaseFirestore.instance
@@ -156,16 +200,31 @@ class _DisplayPageState extends State<DisplayPage> {
         .get()
         .then((value) {
       for (var element in value.docs) {
+        log(
+          classOrigin: 'DisplayPageState',
+          functionOrigin: 'initState()',
+          message: 'Added manga: ${element.data().title}.',
+        );
         setState(() => _widgets.add(MangaListItem(
               manga: element.data(),
             )));
       }
+      log(
+        classOrigin: 'DisplayPageState',
+        functionOrigin: 'initState()',
+        message: '_initialized = true.',
+      );
       _initialized = true;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    log(
+      classOrigin: 'DisplayPageState',
+      functionOrigin: 'build(context)',
+      message: 'Building display page.',
+    );
     _widgets.sort(
         ((MangaListItem a, MangaListItem b) => a.manga.compareTo(b.manga)));
     return _initialized
@@ -679,28 +738,20 @@ class MangaPage extends StatefulWidget {
 class _MangaPageState extends State<MangaPage> {
   late final String _userUUID;
 
+  @override
   void initState() {
     super.initState();
     SharedPreferences.getInstance().then(
       (value) {
         _userUUID = value.getString('userPreferencesUUID')!;
+        log(
+          classOrigin: 'MangaPageState',
+          functionOrigin: 'initState()',
+          message: 'Retrieving user UUID: $_userUUID',
+        );
       },
     );
   }
-
-  /*
-  *  void _addEveryVolumeToLibrary() {
-    for (var vol in widget.manga.volumes!) {
-      widget.manga.addVolumeToLibrary(context, vol, false, false);
-    }
-    for (var vars in widget.manga.variants!) {
-      widget.manga.addVolumeToLibrary(context, vars, true, false);
-    }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            AppLocalizations.of(context)!.addedEveryVolumeToLibraryLabel)));
-  }
-  */
 
   void _navigateTo(int index) {
     Navigator.of(context)
@@ -714,12 +765,18 @@ class _MangaPageState extends State<MangaPage> {
 
   @override
   Widget build(BuildContext context) {
+    log(
+      classOrigin: 'MangaPageState',
+      functionOrigin: 'build(context)',
+      message: 'Building manga page for manga: ${widget.manga.title}',
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.manga.title),
         actions: [
           IconButton(
-              onPressed: () => print("_addEveryVolumeToLibrary"),
+              onPressed: () =>
+                  widget.manga.addEveryVolumeToLibrary(_userUUID, context),
               icon: const Icon(Icons.library_add_rounded)),
         ],
       ),
@@ -827,10 +884,16 @@ class _MangaPageState extends State<MangaPage> {
                   future: widget.manga.getNormalVolumesList(),
                   builder: ((context, snapshot) {
                     if (snapshot.hasData) {
+                      log(
+                        classOrigin: 'MangaPageState',
+                        functionOrigin: 'build()',
+                        message: 'Building normal volumes list.',
+                      );
                       List<Volume> volumeList = snapshot.data ?? [];
                       if (volumeList.isEmpty) {
-                        return Divider(
-                            color: Theme.of(context).backgroundColor);
+                        return const Divider(
+                          thickness: 0,
+                        );
                       } else {
                         volumeList.sort();
                         return Column(
@@ -860,7 +923,7 @@ class _MangaPageState extends State<MangaPage> {
                                               AppLocalizations.of(context)!
                                                   .addToLibraryLabel,
                                               e.addToLibrary,
-                                              _userUUID,
+                                              [_userUUID, context],
                                             ]))
                                     .toList(),
                               ),
@@ -879,11 +942,18 @@ class _MangaPageState extends State<MangaPage> {
                   future: widget.manga.getVariantVolumesList(),
                   builder: ((context, snapshot) {
                     if (snapshot.hasData) {
+                      log(
+                        classOrigin: 'MangaPageState',
+                        functionOrigin: 'build()',
+                        message: 'Building variant volumes list.',
+                      );
                       List<Volume> volumeList = snapshot.data ?? [];
                       volumeList.sort();
                       if (volumeList.isEmpty) {
-                        return Divider(
-                            color: Theme.of(context).backgroundColor);
+                        return const Divider(
+                            thickness: 0.0,
+                            height: 0.0,
+                            color: Colors.transparent);
                       } else {
                         return Column(
                           children: <Widget>[
@@ -912,20 +982,20 @@ class _MangaPageState extends State<MangaPage> {
                                               AppLocalizations.of(context)!
                                                   .addToLibraryLabel,
                                               e.addToLibrary,
-                                              _userUUID,
+                                              [_userUUID, context],
                                             ]))
                                     .toList(),
                               ),
                             ),
+                            Divider(
+                              color: Theme.of(context).backgroundColor,
+                            )
                           ],
                         );
                       }
                     }
                     return const CircularProgressIndicator();
                   })),
-              Divider(
-                color: Theme.of(context).backgroundColor,
-              ),
             ],
           ),
         ),
@@ -1132,7 +1202,7 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
-  late final String? _uuid;
+  late final String _uuid;
   late final UserLibrary _userLibrary;
   bool _restored = false;
 
@@ -1146,11 +1216,21 @@ class _LibraryPageState extends State<LibraryPage> {
 
   @override
   void initState() {
+    log(
+      classOrigin: 'LibraryPageState',
+      functionOrigin: 'initState()',
+      message: 'Initializing library page.',
+    );
     super.initState();
     SharedPreferences.getInstance().then((sp) {
-      _uuid = sp.getString("userPreferencesUUID");
+      _uuid = sp.getString("userPreferencesUUID")!;
       setState(() {
         _restored = true;
+        log(
+          classOrigin: 'LibraryPage',
+          functionOrigin: 'initState()',
+          message: 'Retrieved uuid: $_uuid',
+        );
         print("LibraryPage.initState(): uuid = $_uuid ");
         print("LibraryPage.initState():  restored = $_restored");
       });
@@ -1159,8 +1239,6 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Future<List<Manga>> getSavedMangasByUser() async {
     List<Manga> savedMangas = <Manga>[];
-    if (_uuid == null) return Future.sync(() => savedMangas);
-
     final db = FirebaseFirestore.instance;
     final res = await db.collection('users').doc(_uuid).get();
 
@@ -1266,7 +1344,12 @@ class _LibraryPageState extends State<LibraryPage> {
                                 action: vol.showVolume,
                               ))
                           .toList()
-                      : [const CircularProgressIndicator()]),
+                      : [
+                          const Center(
+                            heightFactor: 0.5,
+                            child: CircularProgressIndicator(),
+                          )
+                        ]),
             )
           ],
         );
@@ -1359,38 +1442,6 @@ class _LibraryPageState extends State<LibraryPage> {
         },
       ),
     );
-
-    /*
-    return SafeArea(
-      child: FutureBuilder(
-        future: getSavedVolumesMapByUser(),
-        builder: ((context, snapshot) {
-          if (!snapshot.hasData) return const LinearProgressIndicator();
-          if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
-          }
-
-          List<Widget> children = <Widget>[];
-
-          if (snapshot.data!.isEmpty) {
-            return Center(
-                child: Text(AppLocalizations.of(context)!.noSavedMangaLabel));
-          }
-
-          for (var manga in snapshot.data!.keys) {
-            var volumes = snapshot.data![manga]!;
-            children.add(_getChildren(manga, volumes));
-          }
-
-          return SingleChildScrollView(
-            child: Column(
-              children: children,
-            ),
-          );
-        }),
-      ),
-    );
-    */
   }
 }
 

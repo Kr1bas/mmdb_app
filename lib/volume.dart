@@ -1,6 +1,6 @@
-// ignore_for_file: unused_import
 import 'dart:convert';
-import 'dart:io';
+// ignore: unused_import
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -223,8 +223,11 @@ class Volume implements Comparable<Volume> {
   /// <p>First checks if the manga is in the library:
   /// If not: add the manga.
   /// Then adds the volume.
-  /// <li> userUUID: the uuid of the user updating its library.
-  void addToLibrary(String userUUID) {
+  /// <li> argv[0] -> userUUID: the uuid of the user updating its library,
+  /// <li> argv[1] -> BuildContext.
+  void addToLibrary(List<dynamic> argv, {bool showSnackBar = true}) {
+    String userUUID = argv[0];
+    BuildContext context = argv[1];
     final db = FirebaseFirestore.instance;
     db.collection('users').doc(userUUID).update({
       'userMangaUUIDList': FieldValue.arrayUnion([mangaUUID])
@@ -241,6 +244,11 @@ class Volume implements Comparable<Volume> {
       db.collection('users').doc(userUUID).update({
         mangaUUID: FieldValue.arrayUnion([uuid])
       });
+    }).then((_) {
+      if (showSnackBar) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(AppLocalizations.of(context)!.volumeAddedLabel)));
+      }
     });
   }
 }
